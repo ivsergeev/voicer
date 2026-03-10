@@ -44,7 +44,7 @@ See: http://www.apache.org/licenses/LICENSE-2.0
 
 3. Avalonia UI
 --------------
-Copyright (c) .NET Foundation and Contributors
+Copyright (c) AvaloniaUI OÜ
 License: MIT
 Source: https://github.com/AvaloniaUI/Avalonia
 NuGet: Avalonia, Avalonia.Desktop, Avalonia.Themes.Fluent
@@ -58,7 +58,8 @@ copies of the Software.
 
 4. SkiaSharp
 ------------
-Copyright (c) Microsoft Corporation
+Copyright (c) 2015-2016 Xamarin, Inc.
+Copyright (c) 2017-2018 Microsoft Corporation.
 License: MIT
 Source: https://github.com/mono/SkiaSharp
 NuGet: SkiaSharp

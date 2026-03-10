@@ -200,6 +200,7 @@ public partial class App : Application
             window.Closed += (_, _) =>
             {
                 _settingsOpen = false;
+                _orchestrator.ResumeAfterSettings();
             };
 
             window.Show();

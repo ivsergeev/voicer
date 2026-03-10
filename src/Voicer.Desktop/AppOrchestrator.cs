@@ -15,9 +15,9 @@ public class AppOrchestrator : IDisposable
     private readonly IPlatformInfo _platformInfo;
 
     private AppSettings _settings = null!;
-    private AppState _state = AppState.Idle;
+    private volatile AppState _state = AppState.Idle;
     private bool _insertMode;
-    private bool _paused;
+    private volatile bool _paused;
 
     public AppSettings Settings => _settings;
 
@@ -299,6 +299,14 @@ public class AppOrchestrator : IDisposable
         _hotkeyService.UpdateHotkey(_settings.HotkeyModifiers, _settings.HotkeyKey);
         _hotkeyService.UpdateInsertHotkey(_settings.InsertHotkeyModifiers, _settings.InsertHotkeyKey);
 
+        _paused = false;
+    }
+
+    /// <summary>
+    /// Unconditionally unpauses after settings window is closed (whether saved or cancelled).
+    /// </summary>
+    public void ResumeAfterSettings()
+    {
         _paused = false;
     }
 
