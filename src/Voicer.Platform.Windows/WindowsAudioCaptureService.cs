@@ -183,7 +183,15 @@ public class WindowsAudioCaptureService : IAudioCaptureService
             }
         }
 
-        return enumerator.GetDefaultAudioEndpoint(DataFlow.Capture, Role.Communications);
+        try
+        {
+            return enumerator.GetDefaultAudioEndpoint(DataFlow.Capture, Role.Communications);
+        }
+        catch (System.Runtime.InteropServices.COMException)
+        {
+            throw new InvalidOperationException(
+                "No microphone found. Connect a microphone and try again.");
+        }
     }
 
     private void OnDataAvailable(object? sender, WaveInEventArgs e)

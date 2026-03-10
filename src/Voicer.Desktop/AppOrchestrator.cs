@@ -161,7 +161,19 @@ public class AppOrchestrator : IDisposable
 
         _insertMode = insertMode;
         _state = AppState.Recording;
-        _audioCaptureService.StartRecording();
+
+        try
+        {
+            _audioCaptureService.StartRecording();
+        }
+        catch (Exception ex)
+        {
+            _state = AppState.Idle;
+            Console.WriteLine($"ERROR: Failed to start recording: {ex.Message}");
+            ErrorOccurred?.Invoke($"Failed to start recording:\n{ex.Message}");
+            return;
+        }
+
         if (!insertMode) _wsServer.BroadcastStatus("recording");
 
         var iconType = insertMode ? "recording_insert" : "recording_ws";
