@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=Voicer
+GenericName=Voice Input
+Comment=Offline speech-to-text with push-to-talk hotkeys
+Exec=/opt/voicer/Voicer
+Icon=voicer
+Terminal=false
+Categories=Audio;Utility;Accessibility;
+Keywords=voice;speech;recognition;dictation;microphone;
+StartupNotify=false

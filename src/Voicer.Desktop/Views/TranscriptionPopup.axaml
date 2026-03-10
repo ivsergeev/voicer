@@ -1,0 +1,21 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="Voicer.Desktop.Views.TranscriptionPopup"
+        SystemDecorations="None"
+        TransparencyLevelHint="Transparent"
+        Background="Transparent"
+        ShowInTaskbar="False"
+        ShowActivated="False"
+        Topmost="True"
+        SizeToContent="WidthAndHeight"
+        MaxWidth="400"
+        PointerPressed="Window_PointerPressed">
+    <Border x:Name="PopupBorder" CornerRadius="8" Padding="14,10"
+            BorderBrush="#60FFFFFF" BorderThickness="1">
+        <TextBlock x:Name="MessageText"
+                   Text=""
+                   Foreground="White"
+                   FontSize="14"
+                   TextWrapping="Wrap" />
+    </Border>
+</Window>

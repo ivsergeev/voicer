@@ -1,0 +1,22 @@
+#!/bin/bash
+set -e
+
+# Create symlink for CLI access
+ln -sf /opt/voicer/Voicer /usr/bin/voicer
+
+# Create writable settings file (app stores settings next to executable)
+touch /opt/voicer/settings.json
+chmod 666 /opt/voicer/settings.json
+
+# Update desktop database
+if command -v update-desktop-database &>/dev/null; then
+    update-desktop-database /usr/share/applications/ 2>/dev/null || true
+fi
+
+# Update icon cache
+if command -v gtk-update-icon-cache &>/dev/null; then
+    gtk-update-icon-cache /usr/share/icons/hicolor/ 2>/dev/null || true
+fi
+
+echo "Voicer installed successfully."
+echo "Run 'voicer' or find it in your application menu."

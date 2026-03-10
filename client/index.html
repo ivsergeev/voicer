@@ -1,0 +1,540 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Voicer — WebSocket Client</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: -apple-system, 'Segoe UI', Roboto, sans-serif;
+            background: #F5F5F7;
+            color: #222;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 32px 16px;
+        }
+
+        .container {
+            max-width: 640px;
+            width: 100%;
+        }
+
+        h1 {
+            font-size: 22px;
+            font-weight: 600;
+            margin-bottom: 4px;
+        }
+
+        .subtitle {
+            color: #999;
+            font-size: 13px;
+            margin-bottom: 20px;
+        }
+
+        .section-label {
+            color: #888;
+            font-size: 11px;
+            font-weight: 600;
+            margin-bottom: 6px;
+        }
+
+        .card {
+            background: #fff;
+            border: 1px solid #E0E0E0;
+            border-radius: 6px;
+            padding: 14px;
+            margin-bottom: 14px;
+        }
+
+        /* Connection bar */
+        .connect-row {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+
+        .connect-row input {
+            flex: 1;
+            padding: 8px 12px;
+            border: 1px solid #D0D0D0;
+            border-radius: 4px;
+            font-size: 13px;
+            background: #fff;
+            color: #222;
+            outline: none;
+        }
+
+        .connect-row input:focus {
+            border-color: #2563EB;
+        }
+
+        .btn {
+            padding: 8px 20px;
+            border: none;
+            border-radius: 4px;
+            font-size: 13px;
+            cursor: pointer;
+            transition: background 0.15s;
+        }
+
+        .btn-primary {
+            background: #2563EB;
+            color: #fff;
+        }
+        .btn-primary:hover { background: #1D4ED8; }
+        .btn-primary:active { background: #1E40AF; }
+
+        .btn-danger {
+            background: #DC2626;
+            color: #fff;
+        }
+        .btn-danger:hover { background: #B91C1C; }
+
+        .btn-secondary {
+            background: #E8E8EC;
+            color: #333;
+        }
+        .btn-secondary:hover { background: #DCDCE0; }
+
+        .btn-success {
+            background: #16A34A;
+            color: #fff;
+        }
+        .btn-success:hover { background: #15803D; }
+
+        .btn-warning {
+            background: #F59E0B;
+            color: #fff;
+        }
+        .btn-warning:hover { background: #D97706; }
+
+        .btn:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+        }
+
+        /* Status bar */
+        .status-bar {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .status-indicator {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 13px;
+        }
+
+        .dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: #9CA3AF;
+            transition: background 0.2s;
+        }
+
+        .dot.connected { background: #16A34A; }
+        .dot.disconnected { background: #DC2626; }
+        .dot.connecting { background: #F59E0B; animation: pulse 1s infinite; }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.4; }
+        }
+
+        .status-badges {
+            margin-left: auto;
+            display: flex;
+            gap: 6px;
+        }
+
+        .badge {
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 600;
+            transition: all 0.2s;
+        }
+
+        .voicer-state {
+            background: #F3F4F6;
+            color: #6B7280;
+        }
+
+        .voicer-state.idle { background: #DCFCE7; color: #166534; }
+        .voicer-state.recording { background: #DBEAFE; color: #1E40AF; animation: pulse 1s infinite; }
+        .voicer-state.processing { background: #FEF3C7; color: #92400E; }
+        .voicer-state.error { background: #FEE2E2; color: #991B1B; }
+
+        .claim-badge {
+            background: #F3F4F6;
+            color: #6B7280;
+        }
+
+        .claim-badge.active {
+            background: #DBEAFE;
+            color: #1E40AF;
+        }
+
+        .claim-badge.inactive {
+            background: #F3F4F6;
+            color: #9CA3AF;
+        }
+
+        /* Claim row */
+        .claim-row {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            margin-top: 10px;
+            padding-top: 10px;
+            border-top: 1px solid #F0F0F0;
+        }
+
+        .claim-row .claim-label {
+            font-size: 13px;
+            color: #666;
+            flex: 1;
+        }
+
+        /* Log */
+        .log-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 6px;
+        }
+
+        .log {
+            min-height: 200px;
+            max-height: 480px;
+            overflow-y: auto;
+        }
+
+        .log-empty {
+            color: #999;
+            font-size: 13px;
+            text-align: center;
+            padding: 48px 0;
+        }
+
+        .log-entry {
+            padding: 8px 0;
+            border-bottom: 1px solid #F0F0F0;
+            font-size: 13px;
+            animation: fadeIn 0.2s;
+        }
+
+        .log-entry:last-child { border-bottom: none; }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(-4px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .log-entry .time {
+            color: #9CA3AF;
+            font-size: 11px;
+            margin-bottom: 2px;
+        }
+
+        .log-entry.transcription .text {
+            color: #111;
+            font-weight: 500;
+        }
+
+        .log-entry.status .text {
+            color: #6B7280;
+            font-style: italic;
+        }
+
+        .log-entry.error .text {
+            color: #DC2626;
+        }
+
+        .log-entry.system .text {
+            color: #9CA3AF;
+            font-size: 12px;
+        }
+
+        .log-entry.claim .text {
+            color: #2563EB;
+            font-size: 12px;
+        }
+
+        /* Responsive */
+        @media (max-width: 480px) {
+            body { padding: 16px 8px; }
+            .connect-row { flex-wrap: wrap; }
+            .connect-row input { min-width: 100%; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Voicer</h1>
+        <p class="subtitle">WebSocket Client</p>
+
+        <!-- Connection -->
+        <div class="section-label">CONNECTION</div>
+        <div class="card">
+            <div class="connect-row">
+                <input type="text" id="wsUrl" value="ws://localhost:5050" placeholder="ws://localhost:5050">
+                <button class="btn btn-primary" id="connectBtn" onclick="toggleConnection()">Connect</button>
+            </div>
+        </div>
+
+        <!-- Status -->
+        <div class="section-label">STATUS</div>
+        <div class="card">
+            <div class="status-bar">
+                <div class="status-indicator">
+                    <div class="dot" id="connDot"></div>
+                    <span id="connLabel">Disconnected</span>
+                </div>
+                <div class="status-badges">
+                    <div class="badge claim-badge" id="claimBadge">Not claimed</div>
+                    <div class="badge voicer-state" id="voicerState">—</div>
+                </div>
+            </div>
+            <div class="claim-row">
+                <span class="claim-label" id="claimLabel">Claim this client to receive voice transcriptions</span>
+                <button class="btn btn-success" id="claimBtn" onclick="sendClaim()" disabled>Claim</button>
+                <button class="btn btn-secondary" id="releaseBtn" onclick="sendRelease()" disabled>Release</button>
+            </div>
+        </div>
+
+        <!-- Log -->
+        <div class="log-header">
+            <div class="section-label" style="margin-bottom:0">TRANSCRIPTIONS</div>
+            <button class="btn btn-secondary" style="padding:4px 12px; font-size:12px" onclick="clearLog()">Clear</button>
+        </div>
+        <div class="card">
+            <div class="log" id="log">
+                <div class="log-empty" id="logEmpty">Press the hotkey in Voicer to start dictating</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let ws = null;
+        let reconnectTimer = null;
+        let reconnectDelay = 1000;
+        let claimed = false;
+        const MAX_RECONNECT_DELAY = 10000;
+
+        const connDot = document.getElementById('connDot');
+        const connLabel = document.getElementById('connLabel');
+        const connectBtn = document.getElementById('connectBtn');
+        const voicerState = document.getElementById('voicerState');
+        const claimBadge = document.getElementById('claimBadge');
+        const claimBtn = document.getElementById('claimBtn');
+        const releaseBtn = document.getElementById('releaseBtn');
+        const claimLabel = document.getElementById('claimLabel');
+        const log = document.getElementById('log');
+        const logEmpty = document.getElementById('logEmpty');
+        const wsUrlInput = document.getElementById('wsUrl');
+
+        function toggleConnection() {
+            if (ws && ws.readyState <= 1) {
+                disconnect();
+            } else {
+                connect();
+            }
+        }
+
+        function connect() {
+            if (ws && ws.readyState <= 1) return;
+            clearReconnectTimer();
+
+            const url = wsUrlInput.value.trim();
+            if (!url) return;
+
+            setConnectionState('connecting');
+
+            try {
+                ws = new WebSocket(url);
+            } catch (e) {
+                addLogEntry('system', 'Invalid WebSocket URL');
+                setConnectionState('disconnected');
+                return;
+            }
+
+            ws.onopen = () => {
+                reconnectDelay = 1000;
+                setConnectionState('connected');
+                addLogEntry('system', 'Connected to ' + url);
+            };
+
+            ws.onmessage = (event) => {
+                try {
+                    const msg = JSON.parse(event.data);
+                    handleMessage(msg);
+                } catch (e) {
+                    addLogEntry('system', 'Invalid message: ' + event.data);
+                }
+            };
+
+            ws.onclose = () => {
+                setConnectionState('disconnected');
+                setClaimState(false);
+                addLogEntry('system', 'Disconnected');
+                scheduleReconnect();
+            };
+
+            ws.onerror = () => {
+                // onclose will fire after onerror
+            };
+        }
+
+        function disconnect() {
+            clearReconnectTimer();
+            if (ws) {
+                ws.onclose = null;
+                ws.close();
+                ws = null;
+            }
+            setConnectionState('disconnected');
+            setClaimState(false);
+            setVoicerState('—', '');
+            addLogEntry('system', 'Disconnected');
+        }
+
+        function scheduleReconnect() {
+            clearReconnectTimer();
+            reconnectTimer = setTimeout(() => {
+                addLogEntry('system', 'Reconnecting...');
+                connect();
+                reconnectDelay = Math.min(reconnectDelay * 1.5, MAX_RECONNECT_DELAY);
+            }, reconnectDelay);
+        }
+
+        function clearReconnectTimer() {
+            if (reconnectTimer) {
+                clearTimeout(reconnectTimer);
+                reconnectTimer = null;
+            }
+        }
+
+        function sendClaim() {
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({ type: 'claim' }));
+                addLogEntry('claim', 'Sent claim request');
+            }
+        }
+
+        function sendRelease() {
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({ type: 'release' }));
+                addLogEntry('claim', 'Sent release request');
+            }
+        }
+
+        function handleMessage(msg) {
+            switch (msg.type) {
+                case 'claimed':
+                    setClaimState(msg.active === true);
+                    addLogEntry('claim', msg.active ? 'Claimed — receiving transcriptions' : 'Not claimed — another client is active');
+                    break;
+                case 'transcription':
+                    addLogEntry('transcription', msg.text);
+                    setVoicerState('Idle', 'idle');
+                    break;
+                case 'status':
+                    const labels = { recording: 'Recording', processing: 'Processing', idle: 'Idle' };
+                    setVoicerState(labels[msg.status] || msg.status, msg.status);
+                    if (msg.status !== 'idle') {
+                        addLogEntry('status', labels[msg.status] || msg.status);
+                    }
+                    break;
+                case 'error':
+                    addLogEntry('error', msg.message);
+                    setVoicerState('Error', 'error');
+                    break;
+            }
+        }
+
+        function setConnectionState(state) {
+            connDot.className = 'dot ' + state;
+            const labels = { connected: 'Connected', disconnected: 'Disconnected', connecting: 'Connecting...' };
+            connLabel.textContent = labels[state];
+
+            const isConnected = state === 'connected';
+
+            if (isConnected) {
+                connectBtn.textContent = 'Disconnect';
+                connectBtn.className = 'btn btn-danger';
+                wsUrlInput.disabled = true;
+            } else {
+                connectBtn.textContent = 'Connect';
+                connectBtn.className = 'btn btn-primary';
+                wsUrlInput.disabled = false;
+            }
+
+            claimBtn.disabled = !isConnected;
+            releaseBtn.disabled = !isConnected;
+        }
+
+        function setClaimState(active) {
+            claimed = active;
+            if (active) {
+                claimBadge.textContent = 'Active';
+                claimBadge.className = 'badge claim-badge active';
+                claimLabel.textContent = 'This client receives voice transcriptions';
+                claimBtn.disabled = true;
+                releaseBtn.disabled = false;
+            } else {
+                claimBadge.textContent = 'Not claimed';
+                claimBadge.className = 'badge claim-badge inactive';
+                claimLabel.textContent = 'Claim this client to receive voice transcriptions';
+                claimBtn.disabled = !(ws && ws.readyState === WebSocket.OPEN);
+                releaseBtn.disabled = true;
+            }
+        }
+
+        function setVoicerState(label, cls) {
+            voicerState.textContent = label;
+            voicerState.className = 'badge voicer-state ' + cls;
+        }
+
+        function addLogEntry(type, text) {
+            logEmpty.style.display = 'none';
+
+            const entry = document.createElement('div');
+            entry.className = 'log-entry ' + type;
+
+            const time = document.createElement('div');
+            time.className = 'time';
+            time.textContent = new Date().toLocaleTimeString();
+
+            const content = document.createElement('div');
+            content.className = 'text';
+            content.textContent = text;
+
+            entry.appendChild(time);
+            entry.appendChild(content);
+            log.insertBefore(entry, log.firstChild);
+
+            // Keep max 200 entries
+            while (log.children.length > 201) {
+                log.removeChild(log.lastChild);
+            }
+        }
+
+        function clearLog() {
+            log.innerHTML = '';
+            logEmpty.style.display = '';
+            log.appendChild(logEmpty);
+        }
+
+        // Auto-connect on load
+        connect();
+    </script>
+</body>
+</html>

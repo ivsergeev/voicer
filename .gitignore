@@ -1,0 +1,12 @@
+bin/
+obj/
+.vs/
+.claude/
+*.user
+models/*.onnx
+models/*.txt
+models/*.model
+*.suo
+publish/
+publish-*/
+output/

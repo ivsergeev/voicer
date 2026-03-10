@@ -1,0 +1,12 @@
+Package: voicer
+Version: 1.0.0
+Section: sound
+Priority: optional
+Architecture: amd64
+Depends: libx11-6, xdotool, pulseaudio
+Installed-Size: SIZE_PLACEHOLDER
+Maintainer: Voicer <voicer@voicer.app>
+Description: Offline speech-to-text with push-to-talk hotkeys
+ Cross-platform application for voice input. Runs in the system tray,
+ recognizes Russian speech offline using the GigaAM v3 model,
+ and delivers results via WebSocket or by inserting text at the cursor.
