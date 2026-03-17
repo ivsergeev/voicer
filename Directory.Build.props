@@ -1,0 +1,13 @@
+<Project>
+  <PropertyGroup>
+    <MajorVersion>1</MajorVersion>
+    <MinorVersion>1</MinorVersion>
+
+    <!-- Days since 2025-01-01 -->
+    <_BuildDay>$([System.DateTime]::UtcNow.Subtract($([System.DateTime]::new(2025,1,1))).Days)</_BuildDay>
+
+    <Version>$(MajorVersion).$(MinorVersion).$(_BuildDay)</Version>
+    <AssemblyVersion>$(MajorVersion).$(MinorVersion).$(_BuildDay).0</AssemblyVersion>
+    <FileVersion>$(MajorVersion).$(MinorVersion).$(_BuildDay).0</FileVersion>
+  </PropertyGroup>
+</Project>

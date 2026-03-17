@@ -241,6 +241,31 @@ public class WindowsTextInsertionService : ITextInsertionService
         });
     }
 
+    private const ushort VK_C = 0x43;
+
+    public async Task SimulateCopy()
+    {
+        await Task.Run(() =>
+        {
+            Thread.Sleep(50);
+
+            ushort[] allModifiers = [VK_SHIFT, VK_CONTROL, VK_MENU, VK_LWIN, VK_RWIN];
+            var events = new List<INPUT>();
+
+            foreach (var mod in allModifiers)
+                events.Add(KeyUp(mod));
+
+            events.Add(KeyDown(VK_CONTROL));
+            events.Add(KeyDown(VK_C));
+            events.Add(KeyUp(VK_C));
+            events.Add(KeyUp(VK_CONTROL));
+
+            var arr = events.ToArray();
+            uint sent = SendInput((uint)arr.Length, arr, Marshal.SizeOf<INPUT>());
+            Console.WriteLine($"  [COPY] SendInput sent {sent}/{arr.Length} events (Ctrl+C)");
+        });
+    }
+
     private static INPUT KeyUp(ushort vk) => new()
     {
         type = INPUT_KEYBOARD,

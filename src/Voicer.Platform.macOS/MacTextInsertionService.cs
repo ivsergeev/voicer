@@ -78,6 +78,30 @@ public class MacTextInsertionService : ITextInsertionService
         });
     }
 
+    private const ushort kVK_ANSI_C = 0x08;
+
+    public async Task SimulateCopy()
+    {
+        await Task.Run(() =>
+        {
+            Thread.Sleep(50);
+
+            IntPtr keyDown = CGEventCreateKeyboardEvent(IntPtr.Zero, kVK_ANSI_C, true);
+            CGEventSetFlags(keyDown, kCGEventFlagMaskCommand);
+            CGEventPost(kCGHIDEventTap, keyDown);
+            CFRelease(keyDown);
+
+            Thread.Sleep(10);
+
+            IntPtr keyUp = CGEventCreateKeyboardEvent(IntPtr.Zero, kVK_ANSI_C, false);
+            CGEventSetFlags(keyUp, kCGEventFlagMaskCommand);
+            CGEventPost(kCGHIDEventTap, keyUp);
+            CFRelease(keyUp);
+
+            Console.WriteLine("  [COPY] macOS Cmd+C simulated via CGEventPost");
+        });
+    }
+
     public async Task SimulatePaste()
     {
         await Task.Run(() =>

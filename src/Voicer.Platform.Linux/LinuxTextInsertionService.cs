@@ -65,6 +65,37 @@ public class LinuxTextInsertionService : ITextInsertionService
         });
     }
 
+    public async Task SimulateCopy()
+    {
+        await Task.Run(() =>
+        {
+            Thread.Sleep(50);
+
+            try
+            {
+                if (IsWayland)
+                {
+                    // wtype doesn't have a direct copy, use wl-copy with selection
+                    Process.Start(new ProcessStartInfo("wtype", "-M ctrl -P c -p c -m ctrl")
+                    {
+                        UseShellExecute = false, CreateNoWindow = true
+                    })?.WaitForExit(2000);
+                }
+                else
+                {
+                    Process.Start(new ProcessStartInfo("xdotool", "key --clearmodifiers ctrl+c")
+                    {
+                        UseShellExecute = false, CreateNoWindow = true
+                    })?.WaitForExit(2000);
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[Linux] SimulateCopy failed: {ex.Message}");
+            }
+        });
+    }
+
     public async Task SimulatePaste()
     {
         await Task.Run(() =>

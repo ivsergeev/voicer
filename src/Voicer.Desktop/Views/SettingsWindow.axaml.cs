@@ -50,7 +50,8 @@ public partial class SettingsWindow : Window
             InsertHotkeyKey = settings.InsertHotkeyKey,
             ModelThreads = settings.ModelThreads,
             MicrophoneDeviceId = settings.MicrophoneDeviceId,
-            ShowPopup = settings.ShowPopup
+            ShowPopup = settings.ShowPopup,
+            IncludeSelectedText = settings.IncludeSelectedText
         };
 
         _selectedVkCode = settings.HotkeyKey;
@@ -65,6 +66,7 @@ public partial class SettingsWindow : Window
         PortTextBox.Text = _settings.WebSocketPort.ToString();
         ThreadsTextBox.Text = _settings.ModelThreads.ToString();
         ShowPopupCheckBox.IsChecked = _settings.ShowPopup;
+        IncludeSelectedTextCheckBox.IsChecked = _settings.IncludeSelectedText;
         AutostartCheckBox.IsChecked = _autoStartService.IsEnabled();
     }
 
@@ -165,6 +167,7 @@ public partial class SettingsWindow : Window
         _settings.WebSocketPort = port;
         _settings.ModelThreads = threads;
         _settings.ShowPopup = ShowPopupCheckBox.IsChecked == true;
+        _settings.IncludeSelectedText = IncludeSelectedTextCheckBox.IsChecked == true;
 
         _autoStartService.SetEnabled(AutostartCheckBox.IsChecked == true);
 

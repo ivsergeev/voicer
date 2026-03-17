@@ -65,6 +65,7 @@
                         <TextBox Grid.Column="1" x:Name="PortTextBox" Width="80" HorizontalAlignment="Left"/>
                     </Grid>
                     <CheckBox x:Name="ShowPopupCheckBox" Content="Show transcription popup" Margin="0,0,0,8"/>
+                    <CheckBox x:Name="IncludeSelectedTextCheckBox" Content="Include selected text in WS mode" Margin="0,0,0,8"/>
                     <CheckBox x:Name="AutostartCheckBox" Content="Start with system"/>
                 </StackPanel>
             </Border>

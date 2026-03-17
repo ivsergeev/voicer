@@ -18,6 +18,7 @@ public class AppOrchestrator : IDisposable
     private volatile AppState _state = AppState.Idle;
     private bool _insertMode;
     private volatile bool _paused;
+    private string? _selectedText;
 
     public AppSettings Settings => _settings;
 
@@ -153,6 +154,41 @@ public class AppOrchestrator : IDisposable
         });
     }
 
+    private async Task CaptureSelectedText()
+    {
+        string? savedClipboard = null;
+        try
+        {
+            savedClipboard = await _textInsertionService.GetClipboardText();
+
+            // Clear clipboard so we can detect if Ctrl+C actually copied something
+            await _textInsertionService.SetClipboardText("");
+
+            await _textInsertionService.SimulateCopy();
+            await Task.Delay(100);
+
+            var captured = await _textInsertionService.GetClipboardText();
+            _selectedText = string.IsNullOrEmpty(captured) ? null : captured;
+
+            if (_selectedText != null)
+                Console.WriteLine($"  [SELECTION] Captured: {_selectedText.Substring(0, Math.Min(_selectedText.Length, 80))}...");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"  [SELECTION] Failed to capture: {ex.Message}");
+            _selectedText = null;
+        }
+        finally
+        {
+            // Restore original clipboard
+            if (savedClipboard != null)
+            {
+                try { await _textInsertionService.SetClipboardText(savedClipboard); }
+                catch { /* best effort */ }
+            }
+        }
+    }
+
     private void StartRecording(bool insertMode)
     {
         if (_paused) return;
@@ -220,13 +256,14 @@ public class AppOrchestrator : IDisposable
                     if (insertMode)
                     {
                         await PasteTextAtCursor(text);
+                        TranscriptionReady?.Invoke(text, insertMode);
                     }
                     else
                     {
-                        _wsServer.BroadcastTranscription(text);
+                        var fullText = _selectedText != null ? $"{_selectedText} {text}" : text;
+                        _wsServer.BroadcastTranscription(fullText);
+                        TranscriptionReady?.Invoke(fullText, insertMode);
                     }
-
-                    TranscriptionReady?.Invoke(text, insertMode);
                 }
                 else
                 {
@@ -283,9 +320,16 @@ public class AppOrchestrator : IDisposable
         }
     }
 
-    private void OnHotkeyPressed() => StartRecording(insertMode: false);
+    private async void OnHotkeyPressed()
+    {
+        if (_paused || _state != AppState.Idle || !_speechService.IsInitialized) return;
+        _selectedText = null;
+        if (_settings.IncludeSelectedText)
+            await CaptureSelectedText();
+        StartRecording(insertMode: false);
+    }
     private void OnHotkeyReleased() => StopRecordingAndProcess();
-    private void OnInsertHotkeyPressed() => StartRecording(insertMode: true);
+    private void OnInsertHotkeyPressed() { _selectedText = null; StartRecording(insertMode: true); }
     private void OnInsertHotkeyReleased() => StopRecordingAndProcess();
 
     public void PauseForSettings()

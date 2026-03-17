@@ -17,6 +17,7 @@ public class AppSettings
     public int ModelThreads { get; set; } = 4;
     public string? MicrophoneDeviceId { get; set; }
     public bool ShowPopup { get; set; } = true;
+    public bool IncludeSelectedText { get; set; } = true;
 
     private static readonly string SettingsPath = Path.Combine(
         AppDomain.CurrentDomain.BaseDirectory, "settings.json");

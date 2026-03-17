@@ -17,4 +17,9 @@ public interface ITextInsertionService
     /// Caller is responsible for setting clipboard content first.
     /// </summary>
     Task SimulatePaste();
+
+    /// <summary>
+    /// Simulates copy (Ctrl+C / Cmd+C) to capture the current selection in the foreground app.
+    /// </summary>
+    Task SimulateCopy();
 }
