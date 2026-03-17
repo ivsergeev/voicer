@@ -85,8 +85,11 @@ public class MacHotkeyService : IHotkeyService
     private ulong _primaryExpectedFlags;
     private ushort _insertMacKeycode;
     private ulong _insertExpectedFlags;
+    private ushort _selectionMacKeycode;
+    private ulong _selectionExpectedFlags;
     private bool _isPrimaryDown;
     private bool _isInsertDown;
+    private bool _isSelectionDown;
 
     public bool IsAvailable => true;
 
@@ -94,6 +97,8 @@ public class MacHotkeyService : IHotkeyService
     public event Action? KeyReleased;
     public event Action? InsertKeyPressed;
     public event Action? InsertKeyReleased;
+    public event Action? SelectionKeyPressed;
+    public event Action? SelectionKeyReleased;
 
     /// <summary>
     /// Converts MOD_* bitmask to CGEventFlags mask.
@@ -108,12 +113,16 @@ public class MacHotkeyService : IHotkeyService
         return flags;
     }
 
-    public void Start(int primaryModifiers, int primaryKeyCode, int insertModifiers, int insertKeyCode)
+    public void Start(int primaryModifiers, int primaryKeyCode,
+        int insertModifiers, int insertKeyCode,
+        int selectionModifiers, int selectionKeyCode)
     {
         MacPlatformInfo.VkToMacKeyCode.TryGetValue(primaryKeyCode, out _primaryMacKeycode);
         MacPlatformInfo.VkToMacKeyCode.TryGetValue(insertKeyCode, out _insertMacKeycode);
+        MacPlatformInfo.VkToMacKeyCode.TryGetValue(selectionKeyCode, out _selectionMacKeycode);
         _primaryExpectedFlags = ModToCGFlags(primaryModifiers);
         _insertExpectedFlags = ModToCGFlags(insertModifiers);
+        _selectionExpectedFlags = ModToCGFlags(selectionModifiers);
 
         _tapThread = new Thread(RunEventTap) { IsBackground = true, Name = "CGEventTapLoop" };
         _tapThread.Start();
@@ -161,7 +170,7 @@ public class MacHotkeyService : IHotkeyService
         // Handle modifier key release while hotkey is held down
         if (type == kCGEventFlagsChanged)
         {
-            if (_isPrimaryDown || _isInsertDown)
+            if (_isPrimaryDown || _isInsertDown || _isSelectionDown)
             {
                 ulong flags = CGEventGetFlags(@event);
                 ulong currentMod = flags & RelevantModifierMask;
@@ -175,6 +184,11 @@ public class MacHotkeyService : IHotkeyService
                 {
                     _isInsertDown = false;
                     InsertKeyReleased?.Invoke();
+                }
+                if (_isSelectionDown && currentMod != _selectionExpectedFlags)
+                {
+                    _isSelectionDown = false;
+                    SelectionKeyReleased?.Invoke();
                 }
             }
             return @event;
@@ -214,6 +228,21 @@ public class MacHotkeyService : IHotkeyService
             return IntPtr.Zero; // Consume
         }
 
+        if (keycode == _selectionMacKeycode && currentModifiers == _selectionExpectedFlags)
+        {
+            if (type == kCGEventKeyDown && !_isSelectionDown)
+            {
+                _isSelectionDown = true;
+                SelectionKeyPressed?.Invoke();
+            }
+            else if (type == kCGEventKeyUp && _isSelectionDown)
+            {
+                _isSelectionDown = false;
+                SelectionKeyReleased?.Invoke();
+            }
+            return IntPtr.Zero; // Consume
+        }
+
         return @event; // Pass through
     }
 
@@ -248,6 +277,14 @@ public class MacHotkeyService : IHotkeyService
             _insertMacKeycode = macKey;
         _insertExpectedFlags = ModToCGFlags(modifiers);
         _isInsertDown = false;
+    }
+
+    public void UpdateSelectionHotkey(int modifiers, int keyCode)
+    {
+        if (MacPlatformInfo.VkToMacKeyCode.TryGetValue(keyCode, out var macKey))
+            _selectionMacKeycode = macKey;
+        _selectionExpectedFlags = ModToCGFlags(modifiers);
+        _isSelectionDown = false;
     }
 
     public void Dispose()

@@ -39,7 +39,7 @@
         <StackPanel Grid.Row="2" Margin="0,0,0,14">
             <TextBlock Text="HOTKEYS" Foreground="#888" FontSize="11" FontWeight="SemiBold" Margin="0,0,0,6"/>
             <Border Background="White" CornerRadius="6" Padding="14,12" BorderBrush="#E0E0E0" BorderThickness="1">
-                <Grid RowDefinitions="Auto,Auto" ColumnDefinitions="120,*">
+                <Grid RowDefinitions="Auto,Auto,Auto" ColumnDefinitions="120,*">
                     <TextBlock Grid.Row="0" Grid.Column="0" Text="WebSocket" Foreground="#555" FontSize="13" VerticalAlignment="Center"/>
                     <TextBox Grid.Row="0" Grid.Column="1" x:Name="HotkeyTextBox"
                              IsReadOnly="True" Margin="0,0,0,8" Cursor="Hand"
@@ -48,9 +48,15 @@
 
                     <TextBlock Grid.Row="1" Grid.Column="0" Text="Insert at cursor" Foreground="#555" FontSize="13" VerticalAlignment="Center"/>
                     <TextBox Grid.Row="1" Grid.Column="1" x:Name="InsertHotkeyTextBox"
-                             IsReadOnly="True" Cursor="Hand"
+                             IsReadOnly="True" Margin="0,0,0,8" Cursor="Hand"
                              KeyDown="InsertHotkeyTextBox_KeyDown"
                              GotFocus="InsertHotkeyTextBox_GotFocus"/>
+
+                    <TextBlock Grid.Row="2" Grid.Column="0" Text="WS + selection" Foreground="#555" FontSize="13" VerticalAlignment="Center"/>
+                    <TextBox Grid.Row="2" Grid.Column="1" x:Name="SelectionHotkeyTextBox"
+                             IsReadOnly="True" Cursor="Hand"
+                             KeyDown="SelectionHotkeyTextBox_KeyDown"
+                             GotFocus="SelectionHotkeyTextBox_GotFocus"/>
                 </Grid>
             </Border>
         </StackPanel>
@@ -65,7 +71,6 @@
                         <TextBox Grid.Column="1" x:Name="PortTextBox" Width="80" HorizontalAlignment="Left"/>
                     </Grid>
                     <CheckBox x:Name="ShowPopupCheckBox" Content="Show transcription popup" Margin="0,0,0,8"/>
-                    <CheckBox x:Name="IncludeSelectedTextCheckBox" Content="Include selected text in WS mode" Margin="0,0,0,8"/>
                     <CheckBox x:Name="AutostartCheckBox" Content="Start with system"/>
                 </StackPanel>
             </Border>

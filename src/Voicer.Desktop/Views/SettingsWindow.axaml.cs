@@ -20,6 +20,8 @@ public partial class SettingsWindow : Window
     private int _selectedModifiers;
     private int _selectedInsertVkCode;
     private int _selectedInsertModifiers;
+    private int _selectedSelectionVkCode;
+    private int _selectedSelectionModifiers;
     private List<(string id, string name)> _devices = [];
 
     public event Action<AppSettings>? SettingsChanged;
@@ -48,25 +50,28 @@ public partial class SettingsWindow : Window
             HotkeyKey = settings.HotkeyKey,
             InsertHotkeyModifiers = settings.InsertHotkeyModifiers,
             InsertHotkeyKey = settings.InsertHotkeyKey,
+            SelectionHotkeyModifiers = settings.SelectionHotkeyModifiers,
+            SelectionHotkeyKey = settings.SelectionHotkeyKey,
             ModelThreads = settings.ModelThreads,
             MicrophoneDeviceId = settings.MicrophoneDeviceId,
             ShowPopup = settings.ShowPopup,
-            IncludeSelectedText = settings.IncludeSelectedText
         };
 
         _selectedVkCode = settings.HotkeyKey;
         _selectedModifiers = settings.HotkeyModifiers;
         _selectedInsertVkCode = settings.InsertHotkeyKey;
         _selectedInsertModifiers = settings.InsertHotkeyModifiers;
+        _selectedSelectionVkCode = settings.SelectionHotkeyKey;
+        _selectedSelectionModifiers = settings.SelectionHotkeyModifiers;
 
         LoadMicrophones();
 
         HotkeyTextBox.Text = _platformInfo.GetHotkeyDisplayName(_selectedModifiers, _selectedVkCode);
         InsertHotkeyTextBox.Text = _platformInfo.GetHotkeyDisplayName(_selectedInsertModifiers, _selectedInsertVkCode);
+        SelectionHotkeyTextBox.Text = _platformInfo.GetHotkeyDisplayName(_selectedSelectionModifiers, _selectedSelectionVkCode);
         PortTextBox.Text = _settings.WebSocketPort.ToString();
         ThreadsTextBox.Text = _settings.ModelThreads.ToString();
         ShowPopupCheckBox.IsChecked = _settings.ShowPopup;
-        IncludeSelectedTextCheckBox.IsChecked = _settings.IncludeSelectedText;
         AutostartCheckBox.IsChecked = _autoStartService.IsEnabled();
     }
 
@@ -144,6 +149,30 @@ public partial class SettingsWindow : Window
         InsertHotkeyTextBox.Text = _platformInfo.GetHotkeyDisplayName(_selectedInsertModifiers, _selectedInsertVkCode);
     }
 
+    private void SelectionHotkeyTextBox_GotFocus(object? sender, GotFocusEventArgs e)
+    {
+        SelectionHotkeyTextBox.Text = "Press a key...";
+    }
+
+    private void SelectionHotkeyTextBox_KeyDown(object? sender, KeyEventArgs e)
+    {
+        e.Handled = true;
+
+        int mod = AvaloniaModifiersToMod(e.KeyModifiers);
+
+        if (IsModifierKey(e.Key))
+        {
+            SelectionHotkeyTextBox.Text = mod > 0
+                ? _platformInfo.GetHotkeyDisplayName(mod, 0) + "..."
+                : "Press a key...";
+            return;
+        }
+
+        _selectedSelectionModifiers = mod;
+        _selectedSelectionVkCode = _platformInfo.KeyToVkCode(e.Key);
+        SelectionHotkeyTextBox.Text = _platformInfo.GetHotkeyDisplayName(_selectedSelectionModifiers, _selectedSelectionVkCode);
+    }
+
     private void Save_Click(object? sender, RoutedEventArgs e)
     {
         if (!int.TryParse(PortTextBox.Text, out int port) || port < 1 || port > 65535)
@@ -164,10 +193,11 @@ public partial class SettingsWindow : Window
         _settings.HotkeyKey = _selectedVkCode;
         _settings.InsertHotkeyModifiers = _selectedInsertModifiers;
         _settings.InsertHotkeyKey = _selectedInsertVkCode;
+        _settings.SelectionHotkeyModifiers = _selectedSelectionModifiers;
+        _settings.SelectionHotkeyKey = _selectedSelectionVkCode;
         _settings.WebSocketPort = port;
         _settings.ModelThreads = threads;
         _settings.ShowPopup = ShowPopupCheckBox.IsChecked == true;
-        _settings.IncludeSelectedText = IncludeSelectedTextCheckBox.IsChecked == true;
 
         _autoStartService.SetEnabled(AutostartCheckBox.IsChecked == true);
 

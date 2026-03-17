@@ -296,21 +296,24 @@ export const VoicerPlugin: Plugin = async ({ client }) => {
 
       voicer_new_session: tool({
         description:
-          "Start a new opencode session. Use when the user asks to start a new session, e.g. 'новая сессия', 'new session', 'начни новую сессию'. Creates a new session and switches to it.",
+          "Start a new opencode session. Use when the user asks to start a new session, e.g. 'новая сессия', 'new session', 'начни новую сессию'. Creates a new session and switches the TUI to it.",
         args: {},
         async execute() {
           try {
-            const result = await client.session.create({
-              body: {},
+            // Use tui.command.execute "session.new" — this creates AND switches the UI
+            const result = await client.tui.publish({
+              body: {
+                type: "tui.command.execute" as const,
+                properties: { command: "session.new" },
+              },
             })
             if (result.error) {
               return JSON.stringify({ success: false, error: JSON.stringify(result.error) })
             }
-            const newId = (result.data as { id?: string })?.id
-            if (newId) activeSessionId = newId
-            log("info", `New session created: ${activeSessionId}`)
+            activeSessionId = null // will be resolved from session.created event
+            log("info", "New session requested via TUI command")
             showRichToast("New session started", "success", "Voicer")
-            return JSON.stringify({ success: true, sessionId: activeSessionId })
+            return JSON.stringify({ success: true })
           } catch (err) {
             return JSON.stringify({ success: false, error: String(err) })
           }

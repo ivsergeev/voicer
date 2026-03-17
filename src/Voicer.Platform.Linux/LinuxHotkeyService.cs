@@ -67,10 +67,13 @@ public class LinuxHotkeyService : IHotkeyService
     private uint _primaryX11Mod;
     private int _insertKeycode;
     private uint _insertX11Mod;
+    private int _selectionKeycode;
+    private uint _selectionX11Mod;
     private volatile bool _running;
     private Thread? _eventThread;
     private bool _isPrimaryDown;
     private bool _isInsertDown;
+    private bool _isSelectionDown;
 
     public bool IsAvailable { get; private set; } = true;
 
@@ -78,6 +81,8 @@ public class LinuxHotkeyService : IHotkeyService
     public event Action? KeyReleased;
     public event Action? InsertKeyPressed;
     public event Action? InsertKeyReleased;
+    public event Action? SelectionKeyPressed;
+    public event Action? SelectionKeyReleased;
 
     /// <summary>
     /// Converts MOD_* bitmask to X11 modifier mask.
@@ -92,7 +97,9 @@ public class LinuxHotkeyService : IHotkeyService
         return mask;
     }
 
-    public void Start(int primaryModifiers, int primaryKeyCode, int insertModifiers, int insertKeyCode)
+    public void Start(int primaryModifiers, int primaryKeyCode,
+        int insertModifiers, int insertKeyCode,
+        int selectionModifiers, int selectionKeyCode)
     {
         var sessionType = Environment.GetEnvironmentVariable("XDG_SESSION_TYPE");
         if (sessionType == "wayland")
@@ -113,9 +120,11 @@ public class LinuxHotkeyService : IHotkeyService
 
         _primaryX11Mod = ModToX11Mask(primaryModifiers);
         _insertX11Mod = ModToX11Mask(insertModifiers);
+        _selectionX11Mod = ModToX11Mask(selectionModifiers);
 
         GrabKey(primaryKeyCode, _primaryX11Mod, out _primaryKeycode);
         GrabKey(insertKeyCode, _insertX11Mod, out _insertKeycode);
+        GrabKey(selectionKeyCode, _selectionX11Mod, out _selectionKeycode);
         XFlush(_display);
 
         _running = true;
@@ -193,6 +202,19 @@ public class LinuxHotkeyService : IHotkeyService
                         InsertKeyReleased?.Invoke();
                     }
                 }
+                else if (keycode == _selectionKeycode && cleanState == _selectionX11Mod)
+                {
+                    if (type == KeyPress && !_isSelectionDown)
+                    {
+                        _isSelectionDown = true;
+                        SelectionKeyPressed?.Invoke();
+                    }
+                    else if (type == KeyRelease && _isSelectionDown)
+                    {
+                        _isSelectionDown = false;
+                        SelectionKeyReleased?.Invoke();
+                    }
+                }
             }
         }
         finally
@@ -209,6 +231,7 @@ public class LinuxHotkeyService : IHotkeyService
         {
             UngrabKey(_primaryKeycode, _primaryX11Mod);
             UngrabKey(_insertKeycode, _insertX11Mod);
+            UngrabKey(_selectionKeycode, _selectionX11Mod);
             XFlush(_display);
             XCloseDisplay(_display);
             _display = IntPtr.Zero;
@@ -235,6 +258,16 @@ public class LinuxHotkeyService : IHotkeyService
         GrabKey(keyCode, _insertX11Mod, out _insertKeycode);
         XFlush(_display);
         _isInsertDown = false;
+    }
+
+    public void UpdateSelectionHotkey(int modifiers, int keyCode)
+    {
+        if (_display == IntPtr.Zero) return;
+        UngrabKey(_selectionKeycode, _selectionX11Mod);
+        _selectionX11Mod = ModToX11Mask(modifiers);
+        GrabKey(keyCode, _selectionX11Mod, out _selectionKeycode);
+        XFlush(_display);
+        _isSelectionDown = false;
     }
 
     public void Dispose()

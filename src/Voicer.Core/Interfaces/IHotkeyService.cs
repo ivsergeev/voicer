@@ -11,9 +11,14 @@ public interface IHotkeyService : IDisposable
     event Action? KeyReleased;
     event Action? InsertKeyPressed;
     event Action? InsertKeyReleased;
+    event Action? SelectionKeyPressed;
+    event Action? SelectionKeyReleased;
 
-    void Start(int primaryModifiers, int primaryKeyCode, int insertModifiers, int insertKeyCode);
+    void Start(int primaryModifiers, int primaryKeyCode,
+        int insertModifiers, int insertKeyCode,
+        int selectionModifiers, int selectionKeyCode);
     void Stop();
     void UpdateHotkey(int modifiers, int keyCode);
     void UpdateInsertHotkey(int modifiers, int keyCode);
+    void UpdateSelectionHotkey(int modifiers, int keyCode);
 }

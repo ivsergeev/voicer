@@ -89,11 +89,14 @@ public class AppOrchestrator : IDisposable
         _hotkeyService.KeyReleased += OnHotkeyReleased;
         _hotkeyService.InsertKeyPressed += OnInsertHotkeyPressed;
         _hotkeyService.InsertKeyReleased += OnInsertHotkeyReleased;
+        _hotkeyService.SelectionKeyPressed += OnSelectionHotkeyPressed;
+        _hotkeyService.SelectionKeyReleased += OnSelectionHotkeyReleased;
 
         try
         {
             _hotkeyService.Start(_settings.HotkeyModifiers, _settings.HotkeyKey,
-                _settings.InsertHotkeyModifiers, _settings.InsertHotkeyKey);
+                _settings.InsertHotkeyModifiers, _settings.InsertHotkeyKey,
+                _settings.SelectionHotkeyModifiers, _settings.SelectionHotkeyKey);
 
             if (!_hotkeyService.IsAvailable)
             {
@@ -107,6 +110,7 @@ public class AppOrchestrator : IDisposable
             {
                 Console.WriteLine($"Push-to-talk hotkey (WS): {_platformInfo.GetHotkeyDisplayName(_settings.HotkeyModifiers, _settings.HotkeyKey)}");
                 Console.WriteLine($"Push-to-talk hotkey (Insert): {_platformInfo.GetHotkeyDisplayName(_settings.InsertHotkeyModifiers, _settings.InsertHotkeyKey)}");
+                Console.WriteLine($"Push-to-talk hotkey (WS+Selection): {_platformInfo.GetHotkeyDisplayName(_settings.SelectionHotkeyModifiers, _settings.SelectionHotkeyKey)}");
             }
         }
         catch (Exception ex)
@@ -326,17 +330,23 @@ public class AppOrchestrator : IDisposable
         }
     }
 
-    private async void OnHotkeyPressed()
+    private void OnHotkeyPressed()
     {
         if (_paused || _state != AppState.Idle || !_speechService.IsInitialized) return;
         _selectedText = null;
-        if (_settings.IncludeSelectedText)
-            await CaptureSelectedText();
         StartRecording(insertMode: false);
     }
     private void OnHotkeyReleased() => StopRecordingAndProcess();
     private void OnInsertHotkeyPressed() { _selectedText = null; StartRecording(insertMode: true); }
     private void OnInsertHotkeyReleased() => StopRecordingAndProcess();
+    private async void OnSelectionHotkeyPressed()
+    {
+        if (_paused || _state != AppState.Idle || !_speechService.IsInitialized) return;
+        _selectedText = null;
+        await CaptureSelectedText();
+        StartRecording(insertMode: false);
+    }
+    private void OnSelectionHotkeyReleased() => StopRecordingAndProcess();
 
     public void PauseForSettings()
     {
@@ -360,6 +370,7 @@ public class AppOrchestrator : IDisposable
         _audioCaptureService.DeviceId = _settings.MicrophoneDeviceId;
         _hotkeyService.UpdateHotkey(_settings.HotkeyModifiers, _settings.HotkeyKey);
         _hotkeyService.UpdateInsertHotkey(_settings.InsertHotkeyModifiers, _settings.InsertHotkeyKey);
+        _hotkeyService.UpdateSelectionHotkey(_settings.SelectionHotkeyModifiers, _settings.SelectionHotkeyKey);
 
         _paused = false;
     }

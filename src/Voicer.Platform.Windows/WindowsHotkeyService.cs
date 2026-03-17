@@ -61,8 +61,11 @@ public class WindowsHotkeyService : IHotkeyService
     private int _targetModifiers;
     private int _insertVkCode;
     private int _insertModifiers;
+    private int _selectionVkCode;
+    private int _selectionModifiers;
     private bool _isKeyDown;
     private bool _isInsertKeyDown;
+    private bool _isSelectionKeyDown;
     private int _consumeModifiers; // MOD_* bits of modifier releases to swallow
 
     public bool IsAvailable => true;
@@ -71,20 +74,27 @@ public class WindowsHotkeyService : IHotkeyService
     public event Action? KeyReleased;
     public event Action? InsertKeyPressed;
     public event Action? InsertKeyReleased;
+    public event Action? SelectionKeyPressed;
+    public event Action? SelectionKeyReleased;
 
     public WindowsHotkeyService()
     {
         _proc = HookCallback;
     }
 
-    public void Start(int primaryModifiers, int primaryKeyCode, int insertModifiers, int insertKeyCode)
+    public void Start(int primaryModifiers, int primaryKeyCode,
+        int insertModifiers, int insertKeyCode,
+        int selectionModifiers, int selectionKeyCode)
     {
         _targetModifiers = primaryModifiers;
         _targetVkCode = primaryKeyCode;
         _insertModifiers = insertModifiers;
         _insertVkCode = insertKeyCode;
+        _selectionModifiers = selectionModifiers;
+        _selectionVkCode = selectionKeyCode;
         _isKeyDown = false;
         _isInsertKeyDown = false;
+        _isSelectionKeyDown = false;
 
         using var process = System.Diagnostics.Process.GetCurrentProcess();
         using var module = process.MainModule!;
@@ -116,6 +126,14 @@ public class WindowsHotkeyService : IHotkeyService
         _insertModifiers = modifiers;
         _insertVkCode = keyCode;
         _isInsertKeyDown = false;
+        _consumeModifiers = 0;
+    }
+
+    public void UpdateSelectionHotkey(int modifiers, int keyCode)
+    {
+        _selectionModifiers = modifiers;
+        _selectionVkCode = keyCode;
+        _isSelectionKeyDown = false;
         _consumeModifiers = 0;
     }
 
@@ -202,6 +220,39 @@ public class WindowsHotkeyService : IHotkeyService
                 {
                     _isInsertKeyDown = false;
                     InsertKeyReleased?.Invoke();
+                    // Fall through to the consume check below
+                }
+            }
+
+            // --- Selection hotkey (WS + selected text) ---
+            if (kbd.vkCode == _selectionVkCode)
+            {
+                int currentMod = GetCurrentModifiers();
+                if (currentMod == _selectionModifiers)
+                {
+                    if ((msg == WM_KEYDOWN || msg == WM_SYSKEYDOWN) && !_isSelectionKeyDown)
+                    {
+                        _isSelectionKeyDown = true;
+                        _consumeModifiers |= _selectionModifiers;
+                        SelectionKeyPressed?.Invoke();
+                    }
+                    else if ((msg == WM_KEYUP || msg == WM_SYSKEYUP) && _isSelectionKeyDown)
+                    {
+                        _isSelectionKeyDown = false;
+                        SelectionKeyReleased?.Invoke();
+                    }
+
+                    return (IntPtr)1; // Consume the key
+                }
+            }
+
+            // Release selection hotkey if modifiers changed while held
+            if (_isSelectionKeyDown && (msg == WM_KEYUP || msg == WM_SYSKEYUP))
+            {
+                if (IsModifierVk(kbd.vkCode))
+                {
+                    _isSelectionKeyDown = false;
+                    SelectionKeyReleased?.Invoke();
                     // Fall through to the consume check below
                 }
             }
