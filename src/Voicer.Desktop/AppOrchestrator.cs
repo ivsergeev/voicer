@@ -168,10 +168,16 @@ public class AppOrchestrator : IDisposable
             await Task.Delay(100);
 
             var captured = await _textInsertionService.GetClipboardText();
-            _selectedText = string.IsNullOrEmpty(captured) ? null : captured;
-
-            if (_selectedText != null)
-                Console.WriteLine($"  [SELECTION] Captured: {_selectedText.Substring(0, Math.Min(_selectedText.Length, 80))}...");
+            if (!string.IsNullOrEmpty(captured))
+            {
+                _selectedText = captured;
+                Console.WriteLine($"  [SELECTION] Captured selected: {_selectedText.Substring(0, Math.Min(_selectedText.Length, 80))}...");
+            }
+            else if (!string.IsNullOrEmpty(savedClipboard))
+            {
+                _selectedText = savedClipboard;
+                Console.WriteLine($"  [SELECTION] Using clipboard: {_selectedText.Substring(0, Math.Min(_selectedText.Length, 80))}...");
+            }
         }
         catch (Exception ex)
         {

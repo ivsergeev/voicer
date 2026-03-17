@@ -164,12 +164,13 @@ export const VoicerPlugin: Plugin = async ({ client }) => {
         case "transcription": {
           if (!msg.text?.trim()) break
 
-          log("info", `Received transcription: "${msg.text}"`)
+          const text = msg.text.trim()
+          log("info", `Received transcription: "${text}"`)
 
           // Use appendPrompt + submitPrompt for visible UI interaction
           try {
             const appendResult = await client.tui.appendPrompt({
-              body: { text: msg.text },
+              body: { text },
             })
             if (appendResult.error) {
               lastError = `appendPrompt error: ${JSON.stringify(appendResult.error)}`
@@ -188,7 +189,7 @@ export const VoicerPlugin: Plugin = async ({ client }) => {
 
             transcriptionCount++
             lastError = ""
-            log("info", `Sent voice prompt: "${msg.text}"`)
+            log("info", `Sent voice prompt: "${text}"`)
           } catch (err) {
             lastError = `Failed to send prompt: ${err}`
             log("error", lastError)
@@ -254,6 +255,7 @@ export const VoicerPlugin: Plugin = async ({ client }) => {
       if (connected) {
         lines.push(`[Voicer] This instance: ${isClaimed ? "ACTIVE (receiving voice)" : "inactive"}`)
       }
+      lines.push(`[Voicer] IMPORTANT: The voicer_new_session tool MUST ONLY be called when the user EXPLICITLY asks to start a new session (e.g. "новая сессия", "new session", "начни новую сессию"). NEVER call it on your own initiative — only on a direct user request.`)
       output.system.push(lines.join(". "))
     },
 
@@ -289,6 +291,29 @@ export const VoicerPlugin: Plugin = async ({ client }) => {
             activeSessionId,
             lastError: lastError || null,
           })
+        },
+      }),
+
+      voicer_new_session: tool({
+        description:
+          "Start a new opencode session. Use when the user asks to start a new session, e.g. 'новая сессия', 'new session', 'начни новую сессию'. Creates a new session and switches to it.",
+        args: {},
+        async execute() {
+          try {
+            const result = await client.session.create({
+              body: {},
+            })
+            if (result.error) {
+              return JSON.stringify({ success: false, error: JSON.stringify(result.error) })
+            }
+            const newId = (result.data as { id?: string })?.id
+            if (newId) activeSessionId = newId
+            log("info", `New session created: ${activeSessionId}`)
+            showRichToast("New session started", "success", "Voicer")
+            return JSON.stringify({ success: true, sessionId: activeSessionId })
+          } catch (err) {
+            return JSON.stringify({ success: false, error: String(err) })
+          }
         },
       }),
 
