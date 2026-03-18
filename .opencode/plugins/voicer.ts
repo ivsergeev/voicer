@@ -296,44 +296,36 @@ export const VoicerPlugin: Plugin = async ({ client }) => {
 
       voicer_new_session: tool({
         description:
-          "Start a new opencode session. Use when the user asks to start a new session, e.g. 'новая сессия', 'new session', 'начни новую сессию'. Navigates TUI to a fresh session and deletes the old one.",
+          "Start a new opencode session. Use when the user asks to start a new session, e.g. 'новая сессия', 'new session', 'начни новую сессию'. Creates a new session and navigates TUI to it.",
         args: {},
         async execute() {
           try {
-            const oldSessionId = await resolveActiveSession()
+            // Create a new session via SDK
+            const createResult = await client.session.create({
+              body: {},
+            })
+            if (createResult.error) {
+              return JSON.stringify({ success: false, error: JSON.stringify(createResult.error) })
+            }
 
-            // Navigate TUI to home screen (creates new session with full UI refresh)
-            const navResult = await client.tui.publish({
+            const newId = createResult.data?.id
+            if (!newId) {
+              return JSON.stringify({ success: false, error: "No session ID returned" })
+            }
+
+            activeSessionId = newId
+            log("info", `New session created: ${newId}`)
+
+            // Navigate TUI to the new session via command
+            await client.tui.publish({
               body: {
                 type: "tui.command.execute" as const,
                 properties: { command: "session.new" },
               },
-            })
-            if (navResult.error) {
-              log("warn", `TUI session.new command error: ${JSON.stringify(navResult.error)}`)
-            }
+            }).catch(() => {})
 
-            // Reset tracked session — will be resolved from session.created event
-            activeSessionId = null
-
-            // Wait for TUI to process navigation
-            await new Promise((r) => setTimeout(r, 300))
-
-            // Delete old session to clean up
-            if (oldSessionId) {
-              const delResult = await client.session.delete({
-                path: { id: oldSessionId },
-              })
-              if (delResult.error) {
-                log("warn", `Failed to delete old session ${oldSessionId}: ${JSON.stringify(delResult.error)}`)
-              } else {
-                log("info", `Deleted old session ${oldSessionId}`)
-              }
-            }
-
-            log("info", "New session started via TUI command")
             showRichToast("New session started", "success", "Voicer")
-            return JSON.stringify({ success: true })
+            return JSON.stringify({ success: true, sessionId: newId })
           } catch (err) {
             return JSON.stringify({ success: false, error: String(err) })
           }
