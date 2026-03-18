@@ -151,7 +151,7 @@ public partial class App : Application
         });
     }
 
-    private void OnTranscriptionReady(string text, bool insertMode)
+    private void OnTranscriptionReady(string text, string mode)
     {
         Dispatcher.UIThread.Post(() =>
         {
@@ -160,7 +160,7 @@ public partial class App : Application
                 if (_orchestrator.Settings.ShowPopup)
                 {
                     var popup = new TranscriptionPopup();
-                    popup.Show(text, insertMode);
+                    popup.Show(text, mode);
                 }
             }
             catch (Exception ex)

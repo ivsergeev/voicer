@@ -40,17 +40,17 @@
             <TextBlock Text="HOTKEYS" Foreground="#888" FontSize="11" FontWeight="SemiBold" Margin="0,0,0,6"/>
             <Border Background="White" CornerRadius="6" Padding="14,12" BorderBrush="#E0E0E0" BorderThickness="1">
                 <Grid RowDefinitions="Auto,Auto,Auto" ColumnDefinitions="120,*">
-                    <TextBlock Grid.Row="0" Grid.Column="0" Text="WebSocket" Foreground="#555" FontSize="13" VerticalAlignment="Center"/>
-                    <TextBox Grid.Row="0" Grid.Column="1" x:Name="HotkeyTextBox"
-                             IsReadOnly="True" Margin="0,0,0,8" Cursor="Hand"
-                             KeyDown="HotkeyTextBox_KeyDown"
-                             GotFocus="HotkeyTextBox_GotFocus"/>
-
-                    <TextBlock Grid.Row="1" Grid.Column="0" Text="Insert at cursor" Foreground="#555" FontSize="13" VerticalAlignment="Center"/>
-                    <TextBox Grid.Row="1" Grid.Column="1" x:Name="InsertHotkeyTextBox"
+                    <TextBlock Grid.Row="0" Grid.Column="0" Text="Insert at cursor" Foreground="#555" FontSize="13" VerticalAlignment="Center"/>
+                    <TextBox Grid.Row="0" Grid.Column="1" x:Name="InsertHotkeyTextBox"
                              IsReadOnly="True" Margin="0,0,0,8" Cursor="Hand"
                              KeyDown="InsertHotkeyTextBox_KeyDown"
                              GotFocus="InsertHotkeyTextBox_GotFocus"/>
+
+                    <TextBlock Grid.Row="1" Grid.Column="0" Text="WebSocket" Foreground="#555" FontSize="13" VerticalAlignment="Center"/>
+                    <TextBox Grid.Row="1" Grid.Column="1" x:Name="HotkeyTextBox"
+                             IsReadOnly="True" Margin="0,0,0,8" Cursor="Hand"
+                             KeyDown="HotkeyTextBox_KeyDown"
+                             GotFocus="HotkeyTextBox_GotFocus"/>
 
                     <TextBlock Grid.Row="2" Grid.Column="0" Text="WS + selection" Foreground="#555" FontSize="13" VerticalAlignment="Center"/>
                     <TextBox Grid.Row="2" Grid.Column="1" x:Name="SelectionHotkeyTextBox"

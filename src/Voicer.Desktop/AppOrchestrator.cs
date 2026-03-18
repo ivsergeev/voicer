@@ -17,6 +17,7 @@ public class AppOrchestrator : IDisposable
     private AppSettings _settings = null!;
     private volatile AppState _state = AppState.Idle;
     private bool _insertMode;
+    private bool _selectionMode;
     private volatile bool _paused;
     private string? _selectedText;
 
@@ -27,7 +28,7 @@ public class AppOrchestrator : IDisposable
     // Events for UI layer
     public event Action<string, string>? StateChanged;         // (status, iconType)
     public event Action<int>? ClientCountChanged;
-    public event Action<string, bool>? TranscriptionReady;     // (text, insertMode)
+    public event Action<string, string>? TranscriptionReady;    // (text, mode: "insert"|"ws"|"ws_sel")
     public event Action<string>? ErrorOccurred;
     // Clipboard is now handled directly via ITextInsertionService
 
@@ -222,10 +223,10 @@ public class AppOrchestrator : IDisposable
 
         if (!insertMode) _wsServer.BroadcastStatus("recording");
 
-        var iconType = insertMode ? "recording_insert" : "recording_ws";
-        var status = insertMode ? "Recording (insert)" : "Recording (ws)";
+        var iconType = insertMode ? "recording_insert" : _selectionMode ? "recording_ws_sel" : "recording_ws";
+        var status = insertMode ? "Recording (insert)" : _selectionMode ? "Recording (ws+sel)" : "Recording (ws)";
         StateChanged?.Invoke(status, iconType);
-        Console.WriteLine($"[REC] Recording started ({(insertMode ? "insert" : "ws")})...");
+        Console.WriteLine($"[REC] Recording started ({(insertMode ? "insert" : _selectionMode ? "ws+sel" : "ws")})...");
     }
 
     private void StopRecordingAndProcess()
@@ -233,10 +234,11 @@ public class AppOrchestrator : IDisposable
         if (_state != AppState.Recording) return;
 
         var insertMode = _insertMode;
+        var selectionMode = _selectionMode;
         _state = AppState.Processing;
         _audioCaptureService.StopRecording();
 
-        var iconType = insertMode ? "processing_insert" : "processing_ws";
+        var iconType = insertMode ? "processing_insert" : selectionMode ? "processing_ws_sel" : "processing_ws";
         StateChanged?.Invoke("Processing", iconType);
         if (!insertMode) _wsServer.BroadcastStatus("processing");
         Console.WriteLine("[REC] Recording stopped. Processing...");
@@ -263,16 +265,18 @@ public class AppOrchestrator : IDisposable
                 {
                     Console.WriteLine($"  >>> {text}");
 
+                    var mode = insertMode ? "insert" : selectionMode ? "ws_sel" : "ws";
+
                     if (insertMode)
                     {
                         await PasteTextAtCursor(text);
-                        TranscriptionReady?.Invoke(text, insertMode);
+                        TranscriptionReady?.Invoke(text, mode);
                     }
                     else
                     {
                         var fullText = _selectedText != null ? $"{_selectedText} {text}" : text;
                         _wsServer.BroadcastTranscription(fullText);
-                        TranscriptionReady?.Invoke(fullText, insertMode);
+                        TranscriptionReady?.Invoke(fullText, mode);
                     }
                 }
                 else
@@ -334,15 +338,17 @@ public class AppOrchestrator : IDisposable
     {
         if (_paused || _state != AppState.Idle || !_speechService.IsInitialized) return;
         _selectedText = null;
+        _selectionMode = false;
         StartRecording(insertMode: false);
     }
     private void OnHotkeyReleased() => StopRecordingAndProcess();
-    private void OnInsertHotkeyPressed() { _selectedText = null; StartRecording(insertMode: true); }
+    private void OnInsertHotkeyPressed() { _selectedText = null; _selectionMode = false; StartRecording(insertMode: true); }
     private void OnInsertHotkeyReleased() => StopRecordingAndProcess();
     private async void OnSelectionHotkeyPressed()
     {
         if (_paused || _state != AppState.Idle || !_speechService.IsInitialized) return;
         _selectedText = null;
+        _selectionMode = true;
         await CaptureSelectedText();
         StartRecording(insertMode: false);
     }

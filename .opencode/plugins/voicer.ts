@@ -296,24 +296,38 @@ export const VoicerPlugin: Plugin = async ({ client }) => {
 
       voicer_new_session: tool({
         description:
-          "Start a new opencode session. Use when the user asks to start a new session, e.g. 'новая сессия', 'new session', 'начни новую сессию'. Creates a new session and switches the TUI to it.",
+          "Start a new opencode session. Use when the user asks to start a new session, e.g. 'новая сессия', 'new session', 'начни новую сессию'. Deletes the current session and creates a fresh one.",
         args: {},
         async execute() {
           try {
-            // Use tui.command.execute "session.new" — this creates AND switches the UI
-            const result = await client.tui.publish({
-              body: {
-                type: "tui.command.execute" as const,
-                properties: { command: "session.new" },
-              },
-            })
-            if (result.error) {
-              return JSON.stringify({ success: false, error: JSON.stringify(result.error) })
+            // Resolve current session to delete it
+            const oldSessionId = await resolveActiveSession()
+
+            // Delete current session if we have one
+            if (oldSessionId) {
+              const delResult = await client.session.delete({
+                path: { id: oldSessionId },
+              })
+              if (delResult.error) {
+                log("warn", `Failed to delete session ${oldSessionId}: ${JSON.stringify(delResult.error)}`)
+              } else {
+                log("info", `Deleted session ${oldSessionId}`)
+              }
             }
-            activeSessionId = null // will be resolved from session.created event
-            log("info", "New session requested via TUI command")
+
+            // Create a new session
+            const createResult = await client.session.create({
+              body: {},
+            })
+            if (createResult.error) {
+              return JSON.stringify({ success: false, error: JSON.stringify(createResult.error) })
+            }
+
+            const newId = createResult.data?.id
+            activeSessionId = newId ?? null
+            log("info", `New session created: ${activeSessionId}`)
             showRichToast("New session started", "success", "Voicer")
-            return JSON.stringify({ success: true })
+            return JSON.stringify({ success: true, sessionId: activeSessionId })
           } catch (err) {
             return JSON.stringify({ success: false, error: String(err) })
           }

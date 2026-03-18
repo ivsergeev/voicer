@@ -30,12 +30,17 @@ public partial class TranscriptionPopup : Window
         };
     }
 
-    public void Show(string text, bool insertMode)
+    public void Show(string text, string mode)
     {
         MessageText.Text = text;
 
-        PopupBorder.Background = new SolidColorBrush(
-            insertMode ? Color.FromArgb(0xE0, 0x1B, 0x5E, 0x20) : Color.FromArgb(0xE0, 0x0D, 0x47, 0xA1));
+        var color = mode switch
+        {
+            "insert" => Color.FromArgb(0xE0, 0x1B, 0x5E, 0x20),   // green
+            "ws_sel" => Color.FromArgb(0xE0, 0x4A, 0x14, 0x8C),   // purple
+            _ => Color.FromArgb(0xE0, 0x0D, 0x47, 0xA1),          // blue
+        };
+        PopupBorder.Background = new SolidColorBrush(color);
 
         _activePopups.Add(this);
         Show();

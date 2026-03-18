@@ -19,8 +19,10 @@ public class SkiaTrayIconGenerator : ITrayIconGenerator
             "idle" => RenderIcon(new SKColor(46, 125, 50), SKColors.White),
             "recording_ws" => RenderIcon(new SKColor(13, 71, 161), SKColors.White, "\u25CF", new SKColor(66, 133, 244)),
             "recording_insert" => RenderIcon(new SKColor(27, 94, 32), SKColors.White, "\u25CF", new SKColor(76, 175, 80)),
+            "recording_ws_sel" => RenderIcon(new SKColor(74, 20, 140), SKColors.White, "\u25CF", new SKColor(171, 71, 188)),
             "processing_ws" => RenderIcon(new SKColor(13, 71, 161), new SKColor(200, 220, 255), "\u2026", new SKColor(66, 133, 244)),
             "processing_insert" => RenderIcon(new SKColor(27, 94, 32), new SKColor(200, 255, 200), "\u2026", new SKColor(76, 175, 80)),
+            "processing_ws_sel" => RenderIcon(new SKColor(74, 20, 140), new SKColor(225, 200, 255), "\u2026", new SKColor(171, 71, 188)),
             "no_model" => RenderIcon(new SKColor(97, 97, 97), new SKColor(200, 200, 200), "!", new SKColor(180, 40, 40)),
             _ => RenderIcon(new SKColor(46, 125, 50), SKColors.White),
         };
