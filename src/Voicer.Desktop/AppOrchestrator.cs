@@ -20,6 +20,7 @@ public class AppOrchestrator : IDisposable
     private bool _selectionMode;
     private volatile bool _paused;
     private string? _selectedText;
+    private volatile int _wsClientCount;
 
     public AppSettings Settings => _settings;
 
@@ -30,6 +31,7 @@ public class AppOrchestrator : IDisposable
     public event Action<int>? ClientCountChanged;
     public event Action<string, string>? TranscriptionReady;    // (text, mode: "insert"|"ws"|"ws_sel")
     public event Action<string>? ErrorOccurred;
+    public event Action<bool>? ActiveClientChanged;            // true = has active client
     // Clipboard is now handled directly via ITextInsertionService
 
     public AppOrchestrator(
@@ -53,7 +55,20 @@ public class AppOrchestrator : IDisposable
         _settings = AppSettings.Load();
 
         // WebSocket server
-        _wsServer.ClientCountChanged += count => ClientCountChanged?.Invoke(count);
+        _wsServer.ClientCountChanged += count =>
+        {
+            _wsClientCount = count;
+            ClientCountChanged?.Invoke(count);
+
+            // Update idle icon when client count crosses 0 boundary
+            if (_state == AppState.Idle)
+            {
+                var icon = count > 0 ? "idle" : "idle_no_clients";
+                var status = count > 0 ? "Idle" : "Idle (no clients)";
+                StateChanged?.Invoke(status, icon);
+            }
+        };
+        _wsServer.ActiveClientChanged += hasActive => ActiveClientChanged?.Invoke(hasActive);
 
         try
         {
@@ -81,6 +96,7 @@ public class AppOrchestrator : IDisposable
             Console.WriteLine("  Using default capture device.");
 
         _audioCaptureService.DeviceId = _settings.MicrophoneDeviceId;
+        _audioCaptureService.NormalizeAudio = _settings.NormalizeAudio;
 
         // Speech recognition
         InitializeSpeechModel();
@@ -123,6 +139,9 @@ public class AppOrchestrator : IDisposable
         Console.WriteLine("Ready. Press hotkey to start recording.");
     }
 
+    private string IdleIconType => _wsClientCount > 0 ? "idle" : "idle_no_clients";
+    private string IdleStatus => _wsClientCount > 0 ? "Idle" : "Idle (no clients)";
+
     private void InitializeSpeechModel()
     {
         var modelPath = _settings.GetModelPath();
@@ -148,7 +167,7 @@ public class AppOrchestrator : IDisposable
                 _speechService.Initialize(modelPath, tokensPath, _settings.ModelThreads);
                 Console.WriteLine("Speech model loaded (e2e with punctuation).");
 
-                StateChanged?.Invoke("Idle", "idle");
+                StateChanged?.Invoke(IdleStatus, IdleIconType);
             }
             catch (Exception ex)
             {
@@ -161,27 +180,39 @@ public class AppOrchestrator : IDisposable
 
     private async Task CaptureSelectedText()
     {
+        const int pollIntervalMs = 15;
+        const int pollTimeoutMs = 500;
+
         string? savedClipboard = null;
         try
         {
             savedClipboard = await _textInsertionService.GetClipboardText();
 
-            // Clear clipboard so we can detect if Ctrl+C actually copied something
+            // Clear clipboard so we can detect when Ctrl+C writes new content
             await _textInsertionService.SetClipboardText("");
 
             await _textInsertionService.SimulateCopy();
-            await Task.Delay(100);
 
-            var captured = await _textInsertionService.GetClipboardText();
+            // Poll clipboard until content appears or timeout
+            string? captured = null;
+            var sw = System.Diagnostics.Stopwatch.StartNew();
+            while (sw.ElapsedMilliseconds < pollTimeoutMs)
+            {
+                await Task.Delay(pollIntervalMs);
+                captured = await _textInsertionService.GetClipboardText();
+                if (!string.IsNullOrEmpty(captured))
+                    break;
+            }
+
             if (!string.IsNullOrEmpty(captured))
             {
                 _selectedText = captured;
-                Console.WriteLine($"  [SELECTION] Captured selected: {_selectedText.Substring(0, Math.Min(_selectedText.Length, 80))}...");
+                Console.WriteLine($"  [SELECTION] Captured in {sw.ElapsedMilliseconds}ms: {_selectedText.Substring(0, Math.Min(_selectedText.Length, 80))}...");
             }
             else if (!string.IsNullOrEmpty(savedClipboard))
             {
                 _selectedText = savedClipboard;
-                Console.WriteLine($"  [SELECTION] Using clipboard: {_selectedText.Substring(0, Math.Min(_selectedText.Length, 80))}...");
+                Console.WriteLine($"  [SELECTION] No selection, using clipboard: {_selectedText.Substring(0, Math.Min(_selectedText.Length, 80))}...");
             }
         }
         catch (Exception ex)
@@ -286,7 +317,7 @@ public class AppOrchestrator : IDisposable
 
                 _state = AppState.Idle;
                 if (!insertMode) _wsServer.BroadcastStatus("idle");
-                StateChanged?.Invoke("Idle", "idle");
+                StateChanged?.Invoke(IdleStatus, IdleIconType);
             }
             catch (Exception ex)
             {
@@ -313,7 +344,7 @@ public class AppOrchestrator : IDisposable
         await _textInsertionService.SimulatePaste();
 
         // Wait for target app to consume the paste
-        await Task.Delay(500);
+        await Task.Delay(50);
 
         // Restore previous clipboard content with retry
         if (savedClipboard != null)
@@ -341,17 +372,33 @@ public class AppOrchestrator : IDisposable
         _selectionMode = false;
         StartRecording(insertMode: false);
     }
+
     private void OnHotkeyReleased() => StopRecordingAndProcess();
-    private void OnInsertHotkeyPressed() { _selectedText = null; _selectionMode = false; StartRecording(insertMode: true); }
+
+    private void OnInsertHotkeyPressed()
+    {
+        if (_paused || _state != AppState.Idle || !_speechService.IsInitialized) return;
+        _selectedText = null;
+        _selectionMode = false;
+        StartRecording(insertMode: true);
+    }
+
     private void OnInsertHotkeyReleased() => StopRecordingAndProcess();
+
     private async void OnSelectionHotkeyPressed()
     {
         if (_paused || _state != AppState.Idle || !_speechService.IsInitialized) return;
         _selectedText = null;
         _selectionMode = true;
-        await CaptureSelectedText();
+
+        // Start recording immediately — icon changes to purple right away
         StartRecording(insertMode: false);
+
+        // Capture selected text in parallel with recording;
+        // it will be ready by the time speech recognition completes
+        await CaptureSelectedText();
     }
+
     private void OnSelectionHotkeyReleased() => StopRecordingAndProcess();
 
     public void PauseForSettings()
@@ -364,7 +411,7 @@ public class AppOrchestrator : IDisposable
             _audioCaptureService.StopRecording();
             _state = AppState.Idle;
             _wsServer.BroadcastStatus("idle");
-            StateChanged?.Invoke("Idle", "idle");
+            StateChanged?.Invoke(IdleStatus, IdleIconType);
         }
     }
 
@@ -374,6 +421,7 @@ public class AppOrchestrator : IDisposable
         _settings.Save();
 
         _audioCaptureService.DeviceId = _settings.MicrophoneDeviceId;
+        _audioCaptureService.NormalizeAudio = _settings.NormalizeAudio;
         _hotkeyService.UpdateHotkey(_settings.HotkeyModifiers, _settings.HotkeyKey);
         _hotkeyService.UpdateInsertHotkey(_settings.InsertHotkeyModifiers, _settings.InsertHotkeyKey);
         _hotkeyService.UpdateSelectionHotkey(_settings.SelectionHotkeyModifiers, _settings.SelectionHotkeyKey);

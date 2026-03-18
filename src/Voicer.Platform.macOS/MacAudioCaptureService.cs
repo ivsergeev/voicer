@@ -93,6 +93,7 @@ public class MacAudioCaptureService : IAudioCaptureService
     private IntPtr _runLoop;
 
     public string? DeviceId { get; set; }
+    public bool NormalizeAudio { get; set; } = true;
     public bool IsRecording => _isRecording;
 
     public event Action? RecordingStarted;
@@ -210,7 +211,8 @@ public class MacAudioCaptureService : IAudioCaptureService
             var samples = new float[sampleCount];
             Buffer.BlockCopy(bytes, 0, samples, 0, bytes.Length);
 
-            Normalize(samples);
+            if (NormalizeAudio)
+                Normalize(samples);
             return samples;
         }
     }

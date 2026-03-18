@@ -14,6 +14,7 @@ public class WindowsAudioCaptureService : IAudioCaptureService
     private bool _isRecording;
 
     public string? DeviceId { get; set; }
+    public bool NormalizeAudio { get; set; } = true;
 
     public bool IsRecording => _isRecording;
 
@@ -61,7 +62,8 @@ public class WindowsAudioCaptureService : IAudioCaptureService
             if (_captureFormat.SampleRate != 16000)
                 rawSamples = Resample(rawSamples, _captureFormat.SampleRate, 16000);
 
-            Normalize(rawSamples);
+            if (NormalizeAudio)
+                Normalize(rawSamples);
 
             return rawSamples;
         }

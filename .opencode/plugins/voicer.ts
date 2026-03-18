@@ -133,9 +133,6 @@ export const VoicerPlugin: Plugin = async ({ client }) => {
       reconnectDelay = 1000
       log("info", `Connected to Voicer at ${VOICER_URL}`)
       showRichToast("Connected", "success", "Voicer")
-
-      // Claim on connect — last instance to connect becomes active
-      sendClaim()
     }
 
     ws.onmessage = async (event) => {
@@ -264,15 +261,16 @@ export const VoicerPlugin: Plugin = async ({ client }) => {
         event.type === "session.created" ||
         event.type === "session.updated"
       ) {
-        // Session info is nested under properties.info
         const props = event.properties as { info?: { id?: string } }
         if (typeof props?.info?.id === "string") {
           activeSessionId = props.info.id
           log("debug", `Active session updated: ${activeSessionId}`)
         }
 
-        // Re-claim on session activity — user is interacting with THIS instance
-        sendClaim()
+        // Auto-claim on new session start (app launch or manual creation)
+        if (event.type === "session.created") {
+          sendClaim()
+        }
       }
     },
 
@@ -316,6 +314,8 @@ export const VoicerPlugin: Plugin = async ({ client }) => {
             activeSessionId = newId
             log("info", `New session created: ${newId}`)
 
+            // Note: claim is auto-sent via session.created event handler
+
             // Navigate TUI to the new session via command
             await client.tui.publish({
               body: {
@@ -338,7 +338,20 @@ export const VoicerPlugin: Plugin = async ({ client }) => {
         args: {},
         async execute() {
           sendClaim()
-          // Wait briefly for the server response
+          await new Promise((r) => setTimeout(r, 100))
+          return JSON.stringify({
+            success: true,
+            isClaimed,
+          })
+        },
+      }),
+
+      voicer_release: tool({
+        description:
+          "Release the voice input claim. This instance will stop receiving voice transcriptions. The active role may be auto-promoted to another connected instance.",
+        args: {},
+        async execute() {
+          sendRelease()
           await new Promise((r) => setTimeout(r, 100))
           return JSON.stringify({
             success: true,

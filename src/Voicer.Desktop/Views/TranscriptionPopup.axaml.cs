@@ -36,9 +36,10 @@ public partial class TranscriptionPopup : Window
 
         var color = mode switch
         {
-            "insert" => Color.FromArgb(0xE0, 0x1B, 0x5E, 0x20),   // green
-            "ws_sel" => Color.FromArgb(0xE0, 0x4A, 0x14, 0x8C),   // purple
-            _ => Color.FromArgb(0xE0, 0x0D, 0x47, 0xA1),          // blue
+            "insert" => Color.FromArgb(0xE0, 0x1B, 0x5E, 0x20),       // green
+            "ws_sel" => Color.FromArgb(0xE0, 0x4A, 0x14, 0x8C),       // purple
+            "no_clients" => Color.FromArgb(0xE0, 0x61, 0x61, 0x61),   // gray
+            _ => Color.FromArgb(0xE0, 0x0D, 0x47, 0xA1),              // blue
         };
         PopupBorder.Background = new SolidColorBrush(color);
 

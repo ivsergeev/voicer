@@ -55,6 +55,7 @@ public partial class SettingsWindow : Window
             ModelThreads = settings.ModelThreads,
             MicrophoneDeviceId = settings.MicrophoneDeviceId,
             ShowPopup = settings.ShowPopup,
+            NormalizeAudio = settings.NormalizeAudio,
         };
 
         _selectedVkCode = settings.HotkeyKey;
@@ -72,6 +73,7 @@ public partial class SettingsWindow : Window
         PortTextBox.Text = _settings.WebSocketPort.ToString();
         ThreadsTextBox.Text = _settings.ModelThreads.ToString();
         ShowPopupCheckBox.IsChecked = _settings.ShowPopup;
+        NormalizeAudioCheckBox.IsChecked = _settings.NormalizeAudio;
         AutostartCheckBox.IsChecked = _autoStartService.IsEnabled();
     }
 
@@ -198,6 +200,7 @@ public partial class SettingsWindow : Window
         _settings.WebSocketPort = port;
         _settings.ModelThreads = threads;
         _settings.ShowPopup = ShowPopupCheckBox.IsChecked == true;
+        _settings.NormalizeAudio = NormalizeAudioCheckBox.IsChecked == true;
 
         _autoStartService.SetEnabled(AutostartCheckBox.IsChecked == true);
 

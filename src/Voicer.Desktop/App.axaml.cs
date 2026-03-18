@@ -39,6 +39,7 @@ public partial class App : Application
                 _orchestrator.ClientCountChanged += OnClientCountChanged;
                 _orchestrator.TranscriptionReady += OnTranscriptionReady;
                 _orchestrator.ErrorOccurred += OnErrorOccurred;
+                _orchestrator.ActiveClientChanged += OnActiveClientChanged;
                 InitializeTrayIcon();
                 _orchestrator.Initialize();
             }
@@ -166,6 +167,28 @@ public partial class App : Application
             catch (Exception ex)
             {
                 Console.WriteLine($"ERROR: OnTranscriptionReady failed: {ex}");
+            }
+        });
+    }
+
+    private void OnActiveClientChanged(bool hasActive)
+    {
+        Dispatcher.UIThread.Post(() =>
+        {
+            try
+            {
+                var msg = hasActive ? "Voice target: active client connected" : "Voice target: no active client";
+                Console.WriteLine($"[WS] {msg}");
+
+                if (_orchestrator.Settings.ShowPopup)
+                {
+                    var popup = new TranscriptionPopup();
+                    popup.Show(msg, hasActive ? "ws" : "no_clients");
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"ERROR: OnActiveClientChanged failed: {ex}");
             }
         });
     }

@@ -3,6 +3,7 @@ namespace Voicer.Core.Interfaces;
 public interface IAudioCaptureService : IDisposable
 {
     string? DeviceId { get; set; }
+    bool NormalizeAudio { get; set; }
     bool IsRecording { get; }
 
     event Action? RecordingStarted;

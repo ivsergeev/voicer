@@ -180,10 +180,10 @@ public class WindowsHotkeyService : IHotkeyService
                 }
             }
 
-            // Release primary hotkey if modifiers changed while held
-            if (_isKeyDown && (msg == WM_KEYUP || msg == WM_SYSKEYUP))
+            // Release primary hotkey if a REQUIRED modifier was released while held
+            if (_isKeyDown && _targetModifiers != 0 && (msg == WM_KEYUP || msg == WM_SYSKEYUP))
             {
-                if (IsModifierVk(kbd.vkCode))
+                if (IsModifierVk(kbd.vkCode) && (_targetModifiers & VkToModBit(kbd.vkCode)) != 0)
                 {
                     _isKeyDown = false;
                     KeyReleased?.Invoke();
@@ -213,10 +213,10 @@ public class WindowsHotkeyService : IHotkeyService
                 }
             }
 
-            // Release insert hotkey if modifiers changed while held
-            if (_isInsertKeyDown && (msg == WM_KEYUP || msg == WM_SYSKEYUP))
+            // Release insert hotkey if a REQUIRED modifier was released while held
+            if (_isInsertKeyDown && _insertModifiers != 0 && (msg == WM_KEYUP || msg == WM_SYSKEYUP))
             {
-                if (IsModifierVk(kbd.vkCode))
+                if (IsModifierVk(kbd.vkCode) && (_insertModifiers & VkToModBit(kbd.vkCode)) != 0)
                 {
                     _isInsertKeyDown = false;
                     InsertKeyReleased?.Invoke();
@@ -246,10 +246,10 @@ public class WindowsHotkeyService : IHotkeyService
                 }
             }
 
-            // Release selection hotkey if modifiers changed while held
-            if (_isSelectionKeyDown && (msg == WM_KEYUP || msg == WM_SYSKEYUP))
+            // Release selection hotkey if a REQUIRED modifier was released while held
+            if (_isSelectionKeyDown && _selectionModifiers != 0 && (msg == WM_KEYUP || msg == WM_SYSKEYUP))
             {
-                if (IsModifierVk(kbd.vkCode))
+                if (IsModifierVk(kbd.vkCode) && (_selectionModifiers & VkToModBit(kbd.vkCode)) != 0)
                 {
                     _isSelectionKeyDown = false;
                     SelectionKeyReleased?.Invoke();

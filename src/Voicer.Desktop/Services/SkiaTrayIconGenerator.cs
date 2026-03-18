@@ -17,6 +17,7 @@ public class SkiaTrayIconGenerator : ITrayIconGenerator
         var bytes = iconType switch
         {
             "idle" => RenderIcon(new SKColor(46, 125, 50), SKColors.White),
+            "idle_no_clients" => RenderIcon(new SKColor(120, 120, 120), new SKColor(200, 200, 200)),
             "recording_ws" => RenderIcon(new SKColor(13, 71, 161), SKColors.White, "\u25CF", new SKColor(66, 133, 244)),
             "recording_insert" => RenderIcon(new SKColor(27, 94, 32), SKColors.White, "\u25CF", new SKColor(76, 175, 80)),
             "recording_ws_sel" => RenderIcon(new SKColor(74, 20, 140), SKColors.White, "\u25CF", new SKColor(171, 71, 188)),

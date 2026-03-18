@@ -25,13 +25,16 @@
         <StackPanel Grid.Row="1" Margin="0,0,0,14">
             <TextBlock Text="AUDIO" Foreground="#888" FontSize="11" FontWeight="SemiBold" Margin="0,0,0,6"/>
             <Border Background="White" CornerRadius="6" Padding="14,12" BorderBrush="#E0E0E0" BorderThickness="1">
-                <Grid RowDefinitions="Auto,Auto" ColumnDefinitions="120,*">
-                    <TextBlock Grid.Row="0" Grid.Column="0" Text="Microphone" Foreground="#555" FontSize="13" VerticalAlignment="Center"/>
-                    <ComboBox Grid.Row="0" Grid.Column="1" x:Name="MicrophoneCombo" Margin="0,0,0,8"/>
+                <StackPanel>
+                    <Grid RowDefinitions="Auto,Auto" ColumnDefinitions="120,*">
+                        <TextBlock Grid.Row="0" Grid.Column="0" Text="Microphone" Foreground="#555" FontSize="13" VerticalAlignment="Center"/>
+                        <ComboBox Grid.Row="0" Grid.Column="1" x:Name="MicrophoneCombo" Margin="0,0,0,8"/>
 
-                    <TextBlock Grid.Row="1" Grid.Column="0" Text="Threads" Foreground="#555" FontSize="13" VerticalAlignment="Center"/>
-                    <TextBox Grid.Row="1" Grid.Column="1" x:Name="ThreadsTextBox" Width="60" HorizontalAlignment="Left"/>
-                </Grid>
+                        <TextBlock Grid.Row="1" Grid.Column="0" Text="Threads" Foreground="#555" FontSize="13" VerticalAlignment="Center"/>
+                        <TextBox Grid.Row="1" Grid.Column="1" x:Name="ThreadsTextBox" Width="60" HorizontalAlignment="Left"/>
+                    </Grid>
+                    <CheckBox x:Name="NormalizeAudioCheckBox" Content="Normalize audio (peak normalization)" Margin="0,8,0,0"/>
+                </StackPanel>
             </Border>
         </StackPanel>
 
