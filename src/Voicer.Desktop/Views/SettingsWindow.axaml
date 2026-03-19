@@ -73,7 +73,21 @@
                         <TextBlock Grid.Column="0" Text="WS Port" Foreground="#555" FontSize="13" VerticalAlignment="Center"/>
                         <TextBox Grid.Column="1" x:Name="PortTextBox" Width="80" HorizontalAlignment="Left"/>
                     </Grid>
-                    <CheckBox x:Name="ShowPopupCheckBox" Content="Show transcription popup" Margin="0,0,0,8"/>
+                    <CheckBox x:Name="ShowPopupCheckBox" Content="Show transcription popup" Margin="0,0,0,4"/>
+                    <CheckBox x:Name="ShowAckPopupCheckBox" Content="Show WS response popups" Margin="20,0,0,8"/>
+                    <Grid ColumnDefinitions="120,*" RowDefinitions="Auto,Auto" Margin="0,0,0,10">
+                        <TextBlock Grid.Row="0" Grid.Column="0" Text="Popup duration" Foreground="#555" FontSize="13" VerticalAlignment="Center"/>
+                        <StackPanel Grid.Row="0" Grid.Column="1" Orientation="Horizontal" Margin="0,0,0,8">
+                            <TextBox x:Name="PopupDurationTextBox" Width="60" HorizontalAlignment="Left"/>
+                            <TextBlock Text="sec" Foreground="#999" FontSize="13" VerticalAlignment="Center" Margin="6,0,0,0"/>
+                        </StackPanel>
+
+                        <TextBlock Grid.Row="1" Grid.Column="0" Text="Popup max chars" Foreground="#555" FontSize="13" VerticalAlignment="Center"/>
+                        <StackPanel Grid.Row="1" Grid.Column="1" Orientation="Horizontal">
+                            <TextBox x:Name="PopupMaxLengthTextBox" Width="60" HorizontalAlignment="Left"/>
+                            <TextBlock Text="0 = no limit" Foreground="#999" FontSize="12" VerticalAlignment="Center" Margin="6,0,0,0"/>
+                        </StackPanel>
+                    </Grid>
                     <CheckBox x:Name="AutostartCheckBox" Content="Start with system"/>
                 </StackPanel>
             </Border>

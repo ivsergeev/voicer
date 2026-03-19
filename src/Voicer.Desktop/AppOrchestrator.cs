@@ -32,6 +32,7 @@ public class AppOrchestrator : IDisposable
     public event Action<string, string>? TranscriptionReady;    // (text, mode: "insert"|"ws"|"ws_sel")
     public event Action<string>? ErrorOccurred;
     public event Action<bool>? ActiveClientChanged;            // true = has active client
+    public event Action<string, string?>? ClientAckReceived;   // (status, message?) from WS client
     // Clipboard is now handled directly via ITextInsertionService
 
     public AppOrchestrator(
@@ -69,6 +70,7 @@ public class AppOrchestrator : IDisposable
             }
         };
         _wsServer.ActiveClientChanged += hasActive => ActiveClientChanged?.Invoke(hasActive);
+        _wsServer.ClientAckReceived += (status, msg) => ClientAckReceived?.Invoke(status, msg);
 
         try
         {

@@ -19,6 +19,9 @@ public class AppSettings
     public int ModelThreads { get; set; } = 4;
     public string? MicrophoneDeviceId { get; set; }
     public bool ShowPopup { get; set; } = true;
+    public bool ShowAckPopup { get; set; } = true;
+    public double PopupDurationSeconds { get; set; } = 4;
+    public int PopupMaxLength { get; set; } = 100;
     public bool NormalizeAudio { get; set; } = true;
 
     private static readonly string SettingsPath = Path.Combine(

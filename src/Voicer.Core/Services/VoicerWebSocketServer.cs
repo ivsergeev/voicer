@@ -25,6 +25,10 @@ public class VoicerWebSocketServer : IDisposable
     /// Fired when the active (claimed) client changes. Parameter is true if there is an active client.
     /// </summary>
     public event Action<bool>? ActiveClientChanged;
+    /// <summary>
+    /// Fired when a client sends an ack message. Parameters: (status, message?).
+    /// </summary>
+    public event Action<string, string?>? ClientAckReceived;
 
     public void Start(int port)
     {
@@ -134,6 +138,17 @@ public class VoicerWebSocketServer : IDisposable
                             }
                         }
                         if (changed) ActiveClientChanged?.Invoke(HasClients);
+                    }
+                    break;
+
+                case "ack":
+                    {
+                        var status = doc.RootElement.TryGetProperty("status", out var s) ? s.GetString() : null;
+                        var msg = doc.RootElement.TryGetProperty("message", out var m) ? m.GetString() : null;
+                        if (status != null)
+                        {
+                            ClientAckReceived?.Invoke(status, msg);
+                        }
                     }
                     break;
 

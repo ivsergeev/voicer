@@ -16,7 +16,7 @@ public partial class TranscriptionPopup : Window
     {
         InitializeComponent();
 
-        _timer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(4) };
+        _timer = new DispatcherTimer();
         _timer.Tick += (_, _) =>
         {
             _timer.Stop();
@@ -30,16 +30,31 @@ public partial class TranscriptionPopup : Window
         };
     }
 
-    public void Show(string text, string mode)
+    public void Show(string text, string mode, double durationSeconds = 4, int maxLength = 0)
     {
-        MessageText.Text = text;
+        var displayText = maxLength > 0 && text.Length > maxLength
+            ? text[..maxLength] + "..."
+            : text;
+        MessageText.Text = displayText;
 
         var color = mode switch
         {
-            "insert" => Color.FromArgb(0xE0, 0x1B, 0x5E, 0x20),       // green
-            "ws_sel" => Color.FromArgb(0xE0, 0x4A, 0x14, 0x8C),       // purple
-            "no_clients" => Color.FromArgb(0xE0, 0x61, 0x61, 0x61),   // gray
-            _ => Color.FromArgb(0xE0, 0x0D, 0x47, 0xA1),              // blue
+            // Outgoing — WS (blue/indigo)
+            "ws" => Color.FromArgb(0xC8, 0x15, 0x65, 0xC0),           // blue 800
+            "ws_sel" => Color.FromArgb(0xC8, 0x28, 0x35, 0x93),       // indigo 800
+
+            // Outgoing — insert (purple)
+            "insert" => Color.FromArgb(0xC8, 0x6A, 0x1B, 0x9A),       // purple 800
+
+            // Incoming (green family)
+            "ack_ok" => Color.FromArgb(0xC8, 0x2E, 0x7D, 0x32),       // green
+            "ack_progress" => Color.FromArgb(0xC8, 0x55, 0x8B, 0x2F), // olive
+            "ack_done" => Color.FromArgb(0xC8, 0x1B, 0x5E, 0x20),     // dark green
+            "ack_error" => Color.FromArgb(0xC8, 0xC6, 0x28, 0x28),    // red
+
+            // Service
+            "no_clients" => Color.FromArgb(0xC8, 0x61, 0x61, 0x61),   // gray
+            _ => Color.FromArgb(0xC8, 0x61, 0x61, 0x61),              // gray (fallback)
         };
         PopupBorder.Background = new SolidColorBrush(color);
 
@@ -52,6 +67,7 @@ public partial class TranscriptionPopup : Window
             RepositionAll();
         }, DispatcherPriority.Loaded);
 
+        _timer.Interval = TimeSpan.FromSeconds(durationSeconds);
         _timer.Start();
     }
 

@@ -40,6 +40,7 @@ public partial class App : Application
                 _orchestrator.TranscriptionReady += OnTranscriptionReady;
                 _orchestrator.ErrorOccurred += OnErrorOccurred;
                 _orchestrator.ActiveClientChanged += OnActiveClientChanged;
+                _orchestrator.ClientAckReceived += OnClientAckReceived;
                 InitializeTrayIcon();
                 _orchestrator.Initialize();
             }
@@ -161,7 +162,7 @@ public partial class App : Application
                 if (_orchestrator.Settings.ShowPopup)
                 {
                     var popup = new TranscriptionPopup();
-                    popup.Show(text, mode);
+                    popup.Show(text, mode, _orchestrator.Settings.PopupDurationSeconds, _orchestrator.Settings.PopupMaxLength);
                 }
             }
             catch (Exception ex)
@@ -183,12 +184,40 @@ public partial class App : Application
                 if (_orchestrator.Settings.ShowPopup)
                 {
                     var popup = new TranscriptionPopup();
-                    popup.Show(msg, hasActive ? "ws" : "no_clients");
+                    popup.Show(msg, hasActive ? "ws" : "no_clients", _orchestrator.Settings.PopupDurationSeconds);
                 }
             }
             catch (Exception ex)
             {
                 Console.WriteLine($"ERROR: OnActiveClientChanged failed: {ex}");
+            }
+        });
+    }
+
+    private void OnClientAckReceived(string status, string? message)
+    {
+        Dispatcher.UIThread.Post(() =>
+        {
+            try
+            {
+                Console.WriteLine($"[WS] Client ack: {status}{(message != null ? $" — {message}" : "")}");
+
+                if (_orchestrator.Settings.ShowAckPopup && status is "done" or "error")
+                {
+                    var (text, mode) = status switch
+                    {
+                        "done" => ("Response complete", "ack_done"),
+                        "error" => (message ?? "Client error", "ack_error"),
+                        _ => ($"Client: {status}", "ack_ok"),
+                    };
+
+                    var popup = new TranscriptionPopup();
+                    popup.Show(text, mode, _orchestrator.Settings.PopupDurationSeconds);
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"ERROR: OnClientAckReceived failed: {ex}");
             }
         });
     }

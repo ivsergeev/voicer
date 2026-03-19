@@ -55,6 +55,9 @@ public partial class SettingsWindow : Window
             ModelThreads = settings.ModelThreads,
             MicrophoneDeviceId = settings.MicrophoneDeviceId,
             ShowPopup = settings.ShowPopup,
+            ShowAckPopup = settings.ShowAckPopup,
+            PopupDurationSeconds = settings.PopupDurationSeconds,
+            PopupMaxLength = settings.PopupMaxLength,
             NormalizeAudio = settings.NormalizeAudio,
         };
 
@@ -73,6 +76,9 @@ public partial class SettingsWindow : Window
         PortTextBox.Text = _settings.WebSocketPort.ToString();
         ThreadsTextBox.Text = _settings.ModelThreads.ToString();
         ShowPopupCheckBox.IsChecked = _settings.ShowPopup;
+        ShowAckPopupCheckBox.IsChecked = _settings.ShowAckPopup;
+        PopupDurationTextBox.Text = _settings.PopupDurationSeconds.ToString("0.#");
+        PopupMaxLengthTextBox.Text = _settings.PopupMaxLength.ToString();
         NormalizeAudioCheckBox.IsChecked = _settings.NormalizeAudio;
         AutostartCheckBox.IsChecked = _autoStartService.IsEnabled();
     }
@@ -199,7 +205,24 @@ public partial class SettingsWindow : Window
         _settings.SelectionHotkeyKey = _selectedSelectionVkCode;
         _settings.WebSocketPort = port;
         _settings.ModelThreads = threads;
+        if (!double.TryParse(PopupDurationTextBox.Text, System.Globalization.NumberStyles.Any,
+                System.Globalization.CultureInfo.InvariantCulture, out double popupDuration)
+            || popupDuration < 0.5 || popupDuration > 30)
+        {
+            Console.WriteLine("Validation: Popup duration must be between 0.5 and 30.");
+            return;
+        }
+
+        if (!int.TryParse(PopupMaxLengthTextBox.Text, out int popupMaxLength) || popupMaxLength < 0)
+        {
+            Console.WriteLine("Validation: Popup max chars must be 0 or greater.");
+            return;
+        }
+
         _settings.ShowPopup = ShowPopupCheckBox.IsChecked == true;
+        _settings.ShowAckPopup = ShowAckPopupCheckBox.IsChecked == true;
+        _settings.PopupDurationSeconds = popupDuration;
+        _settings.PopupMaxLength = popupMaxLength;
         _settings.NormalizeAudio = NormalizeAudioCheckBox.IsChecked == true;
 
         _autoStartService.SetEnabled(AutostartCheckBox.IsChecked == true);

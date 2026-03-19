@@ -82,6 +82,13 @@ export const VoicerPlugin: Plugin = async ({ client }) => {
     }
   }
 
+  function sendAck(status: string, message?: string) {
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({ type: "ack", status, ...(message && { message }) }))
+      log("debug", `Sent ack: ${status}${message ? ` — ${message}` : ""}`)
+    }
+  }
+
   function showRichToast(
     message: string,
     variant: "info" | "success" | "warning" | "error" = "info",
@@ -187,10 +194,12 @@ export const VoicerPlugin: Plugin = async ({ client }) => {
             transcriptionCount++
             lastError = ""
             log("info", `Sent voice prompt: "${text}"`)
+            sendAck("submitted")
           } catch (err) {
             lastError = `Failed to send prompt: ${err}`
             log("error", lastError)
             showRichToast("Failed to send prompt", "error", "Voicer")
+            sendAck("error", lastError)
           }
           break
         }
@@ -257,6 +266,9 @@ export const VoicerPlugin: Plugin = async ({ client }) => {
     },
 
     event: async ({ event }) => {
+      // Log all events to discover available event types
+      log("debug", `Event: ${event.type} ${JSON.stringify(event.properties ?? {})}`)
+
       if (
         event.type === "session.created" ||
         event.type === "session.updated"
@@ -270,6 +282,23 @@ export const VoicerPlugin: Plugin = async ({ client }) => {
         // Auto-claim on new session start (app launch or manual creation)
         if (event.type === "session.created") {
           sendClaim()
+        }
+      }
+
+      // Detect assistant response lifecycle
+      if (event.type === "message.created") {
+        const props = event.properties as { role?: string }
+        if (props?.role === "assistant" && isClaimed) {
+          sendAck("responding")
+        }
+      }
+
+      if (event.type === "message.completed" || event.type === "message.updated") {
+        const props = event.properties as { role?: string; status?: string }
+        if (props?.role === "assistant" && isClaimed) {
+          if (event.type === "message.completed" || props?.status === "completed") {
+            sendAck("done")
+          }
         }
       }
     },
