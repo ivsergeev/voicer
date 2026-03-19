@@ -180,6 +180,7 @@ export const VoicerPlugin: Plugin = async ({ client }) => {
               lastError = `appendPrompt error: ${JSON.stringify(appendResult.error)}`
               log("error", lastError)
               showRichToast(lastError, "error", "Voicer")
+              sendAck("error", lastError)
               break
             }
 
@@ -188,6 +189,7 @@ export const VoicerPlugin: Plugin = async ({ client }) => {
               lastError = `submitPrompt error: ${JSON.stringify(submitResult.error)}`
               log("error", lastError)
               showRichToast(lastError, "error", "Voicer")
+              sendAck("error", lastError)
               break
             }
 

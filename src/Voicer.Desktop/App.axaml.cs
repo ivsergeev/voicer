@@ -202,10 +202,11 @@ public partial class App : Application
             {
                 Console.WriteLine($"[WS] Client ack: {status}{(message != null ? $" — {message}" : "")}");
 
-                if (_orchestrator.Settings.ShowAckPopup && status is "done" or "error")
+                if (_orchestrator.Settings.ShowAckPopup && status is "submitted" or "done" or "error")
                 {
                     var (text, mode) = status switch
                     {
+                        "submitted" => ("Prompt submitted", "ack_ok"),
                         "done" => ("Response complete", "ack_done"),
                         "error" => (message ?? "Client error", "ack_error"),
                         _ => ($"Client: {status}", "ack_ok"),
