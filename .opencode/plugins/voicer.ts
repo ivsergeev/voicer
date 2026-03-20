@@ -315,8 +315,9 @@ export const VoicerPlugin: Plugin = async ({ client }) => {
       showRichToast(result.message, result.variant, "Voicer")
       log("info", `/voicer ${arg || "status"} → ${result.message}`)
 
-      // Clear parts to prevent LLM processing
-      output.parts.length = 0
+      // Throw to abort command execution and prevent LLM call.
+      // The result is already shown via toast.
+      throw new Error(`[voicer] ${result.message}`)
     },
 
     "experimental.chat.system.transform": async (_input, output) => {

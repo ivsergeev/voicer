@@ -440,7 +440,7 @@
             switch (msg.type) {
                 case 'claimed':
                     setClaimState(msg.active === true);
-                    addLogEntry('claim', msg.active ? 'Claimed — receiving transcriptions' : 'Not claimed — another client is active');
+                    addLogEntry('claim', msg.active ? 'Claimed — receiving transcriptions' : 'Not claimed');
                     break;
                 case 'transcription':
                     addLogEntry('transcription', msg.text);
