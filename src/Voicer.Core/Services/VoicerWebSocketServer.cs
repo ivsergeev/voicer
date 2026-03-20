@@ -97,17 +97,17 @@ public class VoicerWebSocketServer : IDisposable
             {
                 case "claim":
                     {
-                        bool changed = false;
+                        bool changed;
                         lock (_lock)
                         {
                             var prevActive = _activeClient;
+                            changed = prevActive != socket;
                             _activeClient = socket;
 
                             // Notify the previous active client it lost the claim
                             if (prevActive != null && prevActive != socket)
                             {
                                 SendTo(prevActive, JsonSerializer.Serialize(new { type = "claimed", active = false }));
-                                changed = true;
                             }
 
                             // Confirm to the new active client

@@ -159,8 +159,8 @@ export const VoicerPlugin: Plugin = async ({ client }) => {
             log("info", "This instance is now the active voice target")
             showRichToast("Voice input active", "success", "Voicer")
           } else if (!isClaimed && wasClaimed) {
-            log("info", "Another instance claimed voice input")
-            showRichToast("Voice input moved to another instance", "warning", "Voicer")
+            log("info", "Voice input disabled")
+            showRichToast("Voice input disabled", "info", "Voicer")
           }
           break
         }
