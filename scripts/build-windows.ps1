@@ -62,7 +62,8 @@ if ($LASTEXITCODE -ne 0) {
 }
 
 $publishSize = (Get-ChildItem $publishDir -Recurse | Measure-Object -Property Length -Sum).Sum / 1MB
-Write-Host "Published: $([math]::Round($publishSize, 1)) MB" -ForegroundColor Green
+$exeVersion = (Get-Item "$publishDir\Voicer.exe").VersionInfo.FileVersion
+Write-Host "Published: $([math]::Round($publishSize, 1)) MB, version $exeVersion" -ForegroundColor Green
 
 # 4. Build installer
 Write-Host ""

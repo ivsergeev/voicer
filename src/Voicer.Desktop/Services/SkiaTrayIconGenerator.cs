@@ -16,16 +16,21 @@ public class SkiaTrayIconGenerator : ITrayIconGenerator
 
         var bytes = iconType switch
         {
-            "idle" => RenderIcon(new SKColor(46, 125, 50), SKColors.White),
+            "idle" => RenderIcon(new SKColor(106, 27, 154), SKColors.White),
+            "idle_claimed" => RenderIcon(new SKColor(46, 125, 50), SKColors.White),
             "idle_no_clients" => RenderIcon(new SKColor(120, 120, 120), new SKColor(200, 200, 200)),
             "recording_ws" => RenderIcon(new SKColor(21, 101, 192), SKColors.White, "\u25CF", new SKColor(66, 165, 245)),
             "recording_insert" => RenderIcon(new SKColor(106, 27, 154), SKColors.White, "\u25CF", new SKColor(186, 104, 200)),
             "recording_ws_sel" => RenderIcon(new SKColor(40, 53, 147), SKColors.White, "\u25CF", new SKColor(121, 134, 203)),
+            "recording_ws_noclaim" => RenderIcon(new SKColor(120, 120, 120), new SKColor(200, 200, 200), "\u25CF", new SKColor(160, 160, 160)),
+            "recording_ws_sel_noclaim" => RenderIcon(new SKColor(120, 120, 120), new SKColor(200, 200, 200), "\u25CF", new SKColor(160, 160, 160)),
             "processing_ws" => RenderIcon(new SKColor(21, 101, 192), new SKColor(200, 220, 255), "\u2026", new SKColor(66, 165, 245)),
             "processing_insert" => RenderIcon(new SKColor(106, 27, 154), new SKColor(235, 210, 255), "\u2026", new SKColor(186, 104, 200)),
             "processing_ws_sel" => RenderIcon(new SKColor(40, 53, 147), new SKColor(210, 215, 255), "\u2026", new SKColor(121, 134, 203)),
+            "processing_ws_noclaim" => RenderIcon(new SKColor(120, 120, 120), new SKColor(200, 200, 200), "\u2026", new SKColor(160, 160, 160)),
+            "processing_ws_sel_noclaim" => RenderIcon(new SKColor(120, 120, 120), new SKColor(200, 200, 200), "\u2026", new SKColor(160, 160, 160)),
             "no_model" => RenderIcon(new SKColor(97, 97, 97), new SKColor(200, 200, 200), "!", new SKColor(180, 40, 40)),
-            _ => RenderIcon(new SKColor(46, 125, 50), SKColors.White),
+            _ => RenderIcon(new SKColor(106, 27, 154), SKColors.White),
         };
 
         _cache[iconType] = bytes;

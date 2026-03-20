@@ -21,6 +21,7 @@ public class AppOrchestrator : IDisposable
     private volatile bool _paused;
     private string? _selectedText;
     private volatile int _wsClientCount;
+    private volatile bool _hasActiveClaim;
 
     public AppSettings Settings => _settings;
 
@@ -59,17 +60,25 @@ public class AppOrchestrator : IDisposable
         _wsServer.ClientCountChanged += count =>
         {
             _wsClientCount = count;
+            if (count == 0) _hasActiveClaim = false;
             ClientCountChanged?.Invoke(count);
 
-            // Update idle icon when client count crosses 0 boundary
             if (_state == AppState.Idle)
             {
-                var icon = count > 0 ? "idle" : "idle_no_clients";
-                var status = count > 0 ? "Idle" : "Idle (no clients)";
-                StateChanged?.Invoke(status, icon);
+                StateChanged?.Invoke(IdleStatus, IdleIconType);
             }
         };
-        _wsServer.ActiveClientChanged += hasActive => ActiveClientChanged?.Invoke(hasActive);
+        _wsServer.ActiveClientChanged += hasActive =>
+        {
+            _hasActiveClaim = hasActive;
+            ActiveClientChanged?.Invoke(hasActive);
+
+            // Update idle icon when claim state changes
+            if (_state == AppState.Idle)
+            {
+                StateChanged?.Invoke(IdleStatus, IdleIconType);
+            }
+        };
         _wsServer.ClientAckReceived += (status, msg) => ClientAckReceived?.Invoke(status, msg);
 
         try
@@ -141,8 +150,12 @@ public class AppOrchestrator : IDisposable
         Console.WriteLine("Ready. Press hotkey to start recording.");
     }
 
-    private string IdleIconType => _wsClientCount > 0 ? "idle" : "idle_no_clients";
-    private string IdleStatus => _wsClientCount > 0 ? "Idle" : "Idle (no clients)";
+    private string IdleIconType => _wsClientCount > 0
+        ? (_hasActiveClaim ? "idle_claimed" : "idle")
+        : "idle_no_clients";
+    private string IdleStatus => _wsClientCount > 0
+        ? (_hasActiveClaim ? "Idle (claimed)" : "Idle")
+        : "Idle (no clients)";
 
     private void InitializeSpeechModel()
     {
@@ -256,8 +269,22 @@ public class AppOrchestrator : IDisposable
 
         if (!insertMode) _wsServer.BroadcastStatus("recording");
 
-        var iconType = insertMode ? "recording_insert" : _selectionMode ? "recording_ws_sel" : "recording_ws";
-        var status = insertMode ? "Recording (insert)" : _selectionMode ? "Recording (ws+sel)" : "Recording (ws)";
+        string iconType, status;
+        if (insertMode)
+        {
+            iconType = "recording_insert";
+            status = "Recording (insert)";
+        }
+        else if (_hasActiveClaim)
+        {
+            iconType = _selectionMode ? "recording_ws_sel" : "recording_ws";
+            status = _selectionMode ? "Recording (ws+sel)" : "Recording (ws)";
+        }
+        else
+        {
+            iconType = _selectionMode ? "recording_ws_sel_noclaim" : "recording_ws_noclaim";
+            status = _selectionMode ? "Recording (ws+sel, no claim)" : "Recording (ws, no claim)";
+        }
         StateChanged?.Invoke(status, iconType);
         Console.WriteLine($"[REC] Recording started ({(insertMode ? "insert" : _selectionMode ? "ws+sel" : "ws")})...");
     }
@@ -271,8 +298,14 @@ public class AppOrchestrator : IDisposable
         _state = AppState.Processing;
         _audioCaptureService.StopRecording();
 
-        var iconType = insertMode ? "processing_insert" : selectionMode ? "processing_ws_sel" : "processing_ws";
-        StateChanged?.Invoke("Processing", iconType);
+        string procIconType;
+        if (insertMode)
+            procIconType = "processing_insert";
+        else if (_hasActiveClaim)
+            procIconType = selectionMode ? "processing_ws_sel" : "processing_ws";
+        else
+            procIconType = selectionMode ? "processing_ws_sel_noclaim" : "processing_ws_noclaim";
+        StateChanged?.Invoke("Processing", procIconType);
         if (!insertMode) _wsServer.BroadcastStatus("processing");
         Console.WriteLine("[REC] Recording stopped. Processing...");
 

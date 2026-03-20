@@ -2,7 +2,7 @@
 ; Requires Inno Setup 6+ (https://jrsoftware.org/isinfo.php)
 
 #define MyAppName "Voicer"
-#define MyAppVersion GetStringFileInfo("..\..\publish\Voicer.exe", "ProductVersion")
+#define MyAppVersion GetFileVersion("..\..\publish\Voicer.exe")
 #define MyAppPublisher "Voicer"
 #define MyAppExeName "Voicer.exe"
 

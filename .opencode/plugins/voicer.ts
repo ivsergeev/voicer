@@ -253,10 +253,72 @@ export const VoicerPlugin: Plugin = async ({ client }) => {
     }, reconnectDelay)
   }
 
-  // Start connection
+  // Start connection automatically
   connectToVoicer()
 
+  // Direct command execution helpers (bypass LLM)
+  function executeVoicerCommand(arg: string): { message: string; variant: "info" | "success" | "warning" | "error" } {
+    switch (arg) {
+      case "claim":
+        if (!connected) {
+          return { message: "Not connected to Voicer", variant: "warning" }
+        }
+        sendClaim()
+        return { message: isClaimed ? "Already claimed" : "Claiming voice input…", variant: "success" }
+      case "release":
+        if (!connected) {
+          return { message: "Not connected to Voicer", variant: "warning" }
+        }
+        sendRelease()
+        return { message: "Released voice input", variant: "info" }
+      case "status":
+      case "": {
+        const lines = [
+          `Connection: ${connected ? "connected" : "disconnected"}`,
+          `Claimed: ${isClaimed ? "yes" : "no"}`,
+          `Mic: ${lastStatus}`,
+          `Transcriptions: ${transcriptionCount}`,
+        ]
+        if (lastError) lines.push(`Error: ${lastError}`)
+        return { message: lines.join("\n"), variant: "info" }
+      }
+      case "new": {
+        client.session.create({ body: {} }).then((res) => {
+          if (res.data?.id) {
+            activeSessionId = res.data.id
+            log("info", `New session created: ${res.data.id}`)
+            client.tui.publish({
+              body: {
+                type: "tui.command.execute" as const,
+                properties: { command: "session.new" },
+              },
+            }).catch(() => {})
+            showRichToast("New session started", "success", "Voicer")
+          }
+        }).catch((err) => {
+          log("error", `Failed to create session: ${err}`)
+          showRichToast("Failed to create session", "error", "Voicer")
+        })
+        return { message: "Creating new session…", variant: "info" }
+      }
+      default:
+        return { message: `Unknown subcommand: ${arg}\nUsage: /voicer [claim|release|status|new]`, variant: "warning" }
+    }
+  }
+
   return {
+    "command.execute.before": async (input, output) => {
+      if (input.command !== "voicer") return
+
+      const arg = (input.arguments || "").trim().toLowerCase()
+      const result = executeVoicerCommand(arg)
+      showRichToast(result.message, result.variant, "Voicer")
+      log("info", `/voicer ${arg || "status"} → ${result.message}`)
+
+      // Clear parts to prevent LLM processing
+      output.parts.length = 0
+    },
+
     "experimental.chat.system.transform": async (_input, output) => {
       const lines: string[] = []
       lines.push(`[Voicer] Voice input: ${connected ? "connected" : "disconnected"}`)
@@ -281,10 +343,6 @@ export const VoicerPlugin: Plugin = async ({ client }) => {
           log("debug", `Active session updated: ${activeSessionId}`)
         }
 
-        // Auto-claim on new session start (app launch or manual creation)
-        if (event.type === "session.created") {
-          sendClaim()
-        }
       }
 
       // Detect assistant response lifecycle
@@ -360,34 +418,6 @@ export const VoicerPlugin: Plugin = async ({ client }) => {
           } catch (err) {
             return JSON.stringify({ success: false, error: String(err) })
           }
-        },
-      }),
-
-      voicer_claim: tool({
-        description:
-          "Claim this opencode instance as the active voice input target. Only the claimed instance receives voice transcriptions from Voicer. Use when voice input should be directed to this session instead of another opencode instance.",
-        args: {},
-        async execute() {
-          sendClaim()
-          await new Promise((r) => setTimeout(r, 100))
-          return JSON.stringify({
-            success: true,
-            isClaimed,
-          })
-        },
-      }),
-
-      voicer_release: tool({
-        description:
-          "Release the voice input claim. This instance will stop receiving voice transcriptions. The active role may be auto-promoted to another connected instance.",
-        args: {},
-        async execute() {
-          sendRelease()
-          await new Promise((r) => setTimeout(r, 100))
-          return JSON.stringify({
-            success: true,
-            isClaimed,
-          })
         },
       }),
     },

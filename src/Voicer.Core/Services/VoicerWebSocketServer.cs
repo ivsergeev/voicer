@@ -20,6 +20,11 @@ public class VoicerWebSocketServer : IDisposable
         get { lock (_lock) return _clients.Count > 0; }
     }
 
+    public bool HasActiveClient
+    {
+        get { lock (_lock) return _activeClient != null; }
+    }
+
     public event Action<int>? ClientCountChanged;
     /// <summary>
     /// Fired when the active (claimed) client changes. Parameter is true if there is an active client.
@@ -37,57 +42,44 @@ public class VoicerWebSocketServer : IDisposable
         {
             socket.OnOpen = () =>
             {
-                bool becameActive = false;
                 lock (_lock)
                 {
                     _clients.Add(socket);
-
-                    // First client auto-claims
-                    if (_activeClient == null)
-                    {
-                        _activeClient = socket;
-                        becameActive = true;
-                        SendTo(socket, JsonSerializer.Serialize(new { type = "claimed", active = true }));
-                    }
-                    else
-                    {
-                        SendTo(socket, JsonSerializer.Serialize(new { type = "claimed", active = false }));
-                    }
+                    SendTo(socket, JsonSerializer.Serialize(new { type = "claimed", active = false }));
                 }
                 ClientCountChanged?.Invoke(ClientCount);
-                if (becameActive) ActiveClientChanged?.Invoke(true);
             };
 
             socket.OnClose = () =>
             {
-                bool claimChanged = false;
+                bool hadClaim = false;
                 lock (_lock)
                 {
                     _clients.Remove(socket);
                     if (_activeClient == socket)
                     {
-                        PromoteNextClient();
-                        claimChanged = true;
+                        _activeClient = null;
+                        hadClaim = true;
                     }
                 }
                 ClientCountChanged?.Invoke(ClientCount);
-                if (claimChanged) ActiveClientChanged?.Invoke(HasClients);
+                if (hadClaim) ActiveClientChanged?.Invoke(false);
             };
 
             socket.OnError = ex =>
             {
-                bool claimChanged = false;
+                bool hadClaim = false;
                 lock (_lock)
                 {
                     _clients.Remove(socket);
                     if (_activeClient == socket)
                     {
-                        PromoteNextClient();
-                        claimChanged = true;
+                        _activeClient = null;
+                        hadClaim = true;
                     }
                 }
                 ClientCountChanged?.Invoke(ClientCount);
-                if (claimChanged) ActiveClientChanged?.Invoke(HasClients);
+                if (hadClaim) ActiveClientChanged?.Invoke(false);
             };
 
             socket.OnMessage = message => HandleClientMessage(socket, message);
@@ -132,12 +124,12 @@ public class VoicerWebSocketServer : IDisposable
                         {
                             if (_activeClient == socket)
                             {
+                                _activeClient = null;
                                 SendTo(socket, JsonSerializer.Serialize(new { type = "claimed", active = false }));
-                                PromoteNextClient(exclude: socket);
                                 changed = true;
                             }
                         }
-                        if (changed) ActiveClientChanged?.Invoke(HasClients);
+                        if (changed) ActiveClientChanged?.Invoke(false);
                     }
                     break;
 
@@ -158,22 +150,6 @@ public class VoicerWebSocketServer : IDisposable
         catch
         {
             // Malformed JSON — ignore
-        }
-    }
-
-    /// <summary>
-    /// Passes the active role to the next available client.
-    /// Must be called under _lock.
-    /// </summary>
-    private void PromoteNextClient(IWebSocketConnection? exclude = null)
-    {
-        _activeClient = null;
-
-        var next = _clients.FirstOrDefault(c => c != exclude);
-        if (next != null)
-        {
-            _activeClient = next;
-            SendTo(next, JsonSerializer.Serialize(new { type = "claimed", active = true }));
         }
     }
 
