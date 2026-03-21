@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
 """
-Generate Voicer application icons from scratch using Pillow.
+Generate Voicer and OpenVoicer application icons from scratch using Pillow.
 Creates a clean microphone icon suitable for app icons, tray, and installers.
-Outputs: installer/icons/icon-{1024,512,256}.png, installer/icons/voicer.ico
+Outputs: installer/icons/icon-{1024,512,256}.png, installer/icons/voicer.ico,
+         installer/icons/openvoicer.ico
 """
 
 import os
 
-from PIL import Image, ImageDraw
+from PIL import Image, ImageDraw, ImageFont
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 ROOT_DIR = os.path.dirname(SCRIPT_DIR)
@@ -133,7 +134,70 @@ def main():
     kb = os.path.getsize(ico_path) // 1024
     print(f"  Windows .ico: {ico_path} ({kb} KB)")
 
+    # --- Generate OpenVoicer icon ---
+    print("\n=== Generating OpenVoicer icons ===")
+    ov_icons = {}
+    for sz in [256, 48, 32, 16]:
+        ov_icons[sz] = draw_openvoicer_icon(sz)
+
+    ov_ico_path = os.path.join(icons_dir, "openvoicer.ico")
+    ov_ico_images = [ov_icons[sz] for sz in [256, 48, 32, 16]]
+    ov_ico_images[0].save(
+        ov_ico_path, format="ICO",
+        sizes=[(img.width, img.height) for img in ov_ico_images],
+        append_images=ov_ico_images[1:],
+    )
+    kb = os.path.getsize(ov_ico_path) // 1024
+    print(f"  Windows .ico: {ov_ico_path} ({kb} KB)")
+
     print("\nDone!")
+
+
+def draw_openvoicer_icon(size: int) -> Image.Image:
+    """Draw an OpenVoicer icon — 'OV' text on a blue rounded-square background."""
+    s = size
+    ss = s * 4  # 4x supersampling
+    img = Image.new("RGBA", (ss, ss), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(img)
+
+    # --- Background (same blue as OpenVoicer tray: #3B82F6) ---
+    bg_color = (59, 130, 246)
+    cr = int(ss * 0.22)
+    draw.rounded_rectangle([(0, 0), (ss - 1, ss - 1)], radius=cr, fill=bg_color)
+
+    # Top highlight
+    overlay = Image.new("RGBA", (ss, ss), (0, 0, 0, 0))
+    ov_draw = ImageDraw.Draw(overlay)
+    ov_draw.rounded_rectangle(
+        [(0, 0), (ss - 1, int(ss * 0.38))],
+        radius=cr,
+        fill=(255, 255, 255, 25),
+    )
+    img = Image.alpha_composite(img, overlay)
+    draw = ImageDraw.Draw(img)
+
+    # --- Text "OV" ---
+    white = (255, 255, 255)
+    font_size = int(ss * 0.42)
+    try:
+        font = ImageFont.truetype("arial.ttf", font_size)
+    except (IOError, OSError):
+        try:
+            font = ImageFont.truetype("Arial Bold.ttf", font_size)
+        except (IOError, OSError):
+            font = ImageFont.load_default()
+
+    text = "OV"
+    bbox = draw.textbbox((0, 0), text, font=font)
+    tw = bbox[2] - bbox[0]
+    th = bbox[3] - bbox[1]
+    tx = (ss - tw) / 2 - bbox[0]
+    ty = (ss - th) / 2 - bbox[1]
+    draw.text((tx, ty), text, fill=white, font=font)
+
+    # Downsample
+    img = img.resize((s, s), Image.LANCZOS)
+    return img
 
 
 if __name__ == "__main__":

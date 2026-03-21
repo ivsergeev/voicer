@@ -1,0 +1,11 @@
+Package: openvoicer
+Version: 1.0.0
+Section: utils
+Priority: optional
+Architecture: amd64
+Installed-Size: SIZE_PLACEHOLDER
+Maintainer: Voicer <voicer@voicer.app>
+Description: Voice-to-AI bridge for Voicer and OpenCode
+ Tray application that connects Voicer (offline speech-to-text)
+ with OpenCode (AI coding agent). Transcriptions are sent as
+ prompts to OpenCode with popup notifications for agent status.

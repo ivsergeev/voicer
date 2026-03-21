@@ -268,6 +268,31 @@
             font-size: 12px;
         }
 
+        .tag-pill {
+            display: inline-block;
+            padding: 1px 8px;
+            border-radius: 4px;
+            background: #E0E7FF;
+            color: #3730A3;
+            font-size: 11px;
+            font-weight: 600;
+            vertical-align: middle;
+        }
+
+        .context-preview {
+            margin-top: 4px;
+            padding: 4px 8px;
+            background: #F9FAFB;
+            border: 1px solid #E5E7EB;
+            border-radius: 4px;
+            font-family: 'Consolas', 'Menlo', monospace;
+            font-size: 12px;
+            color: #6B7280;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
         /* Responsive */
         @media (max-width: 480px) {
             body { padding: 16px 8px; }
@@ -443,7 +468,7 @@
                     addLogEntry('claim', msg.active ? 'Claimed — receiving transcriptions' : 'Not claimed');
                     break;
                 case 'transcription':
-                    addLogEntry('transcription', msg.text);
+                    addTranscriptionEntry(msg.text, msg.context, msg.tag);
                     setVoicerState('Idle', 'idle');
                     break;
                 case 'status':
@@ -501,6 +526,56 @@
         function setVoicerState(label, cls) {
             voicerState.textContent = label;
             voicerState.className = 'badge voicer-state ' + cls;
+        }
+
+        function addTranscriptionEntry(text, context, tag) {
+            logEmpty.style.display = 'none';
+
+            const entry = document.createElement('div');
+            entry.className = 'log-entry transcription';
+
+            const time = document.createElement('div');
+            time.className = 'time';
+            time.textContent = new Date().toLocaleTimeString();
+            entry.appendChild(time);
+
+            // Header line: text + tag pill
+            if (text) {
+                const content = document.createElement('div');
+                content.className = 'text';
+                content.textContent = text;
+                if (tag) {
+                    const pill = document.createElement('span');
+                    pill.className = 'tag-pill';
+                    pill.textContent = tag;
+                    content.appendChild(document.createTextNode(' '));
+                    content.appendChild(pill);
+                }
+                entry.appendChild(content);
+            } else if (tag) {
+                // SendTag: no text, just tag
+                const content = document.createElement('div');
+                content.className = 'text';
+                const pill = document.createElement('span');
+                pill.className = 'tag-pill';
+                pill.textContent = tag;
+                content.appendChild(pill);
+                entry.appendChild(content);
+            }
+
+            // Context preview
+            if (context) {
+                const ctx = document.createElement('div');
+                ctx.className = 'context-preview';
+                const firstLine = context.split('\n')[0];
+                ctx.textContent = firstLine.length > 80 ? firstLine.substring(0, 80) + '…' : firstLine;
+                entry.appendChild(ctx);
+            }
+
+            log.insertBefore(entry, log.firstChild);
+            while (log.children.length > 201) {
+                log.removeChild(log.lastChild);
+            }
         }
 
         function addLogEntry(type, text) {

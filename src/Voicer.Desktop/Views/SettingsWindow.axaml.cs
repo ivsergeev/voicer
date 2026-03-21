@@ -1,6 +1,9 @@
+using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
+using Avalonia.Layout;
+using Avalonia.Media;
 using Voicer.Core.Interfaces;
 using Voicer.Core.Models;
 
@@ -16,13 +19,12 @@ public partial class SettingsWindow : Window
     private readonly IAudioCaptureService _audioCaptureService;
     private readonly IAutoStartService _autoStartService;
     private readonly IPlatformInfo _platformInfo;
-    private int _selectedVkCode;
-    private int _selectedModifiers;
     private int _selectedInsertVkCode;
     private int _selectedInsertModifiers;
-    private int _selectedSelectionVkCode;
-    private int _selectedSelectionModifiers;
     private List<(string id, string name)> _devices = [];
+
+    // Dynamic WS hotkey actions
+    private readonly List<WsActionEditor> _wsActionEditors = [];
 
     public event Action<AppSettings>? SettingsChanged;
 
@@ -46,41 +48,43 @@ public partial class SettingsWindow : Window
             ModelFileName = settings.ModelFileName,
             TokensFileName = settings.TokensFileName,
             WebSocketPort = settings.WebSocketPort,
-            HotkeyModifiers = settings.HotkeyModifiers,
-            HotkeyKey = settings.HotkeyKey,
             InsertHotkeyModifiers = settings.InsertHotkeyModifiers,
             InsertHotkeyKey = settings.InsertHotkeyKey,
-            SelectionHotkeyModifiers = settings.SelectionHotkeyModifiers,
-            SelectionHotkeyKey = settings.SelectionHotkeyKey,
+            WsHotkeyActions = settings.WsHotkeyActions.Select(a => new HotkeyAction
+            {
+                Modifiers = a.Modifiers,
+                KeyCode = a.KeyCode,
+                Action = a.Action,
+                Tag = a.Tag,
+                Label = a.Label,
+            }).ToList(),
             ModelThreads = settings.ModelThreads,
             MicrophoneDeviceId = settings.MicrophoneDeviceId,
             ShowPopup = settings.ShowPopup,
-            ShowAckPopup = settings.ShowAckPopup,
             PopupDurationSeconds = settings.PopupDurationSeconds,
             PopupMaxLength = settings.PopupMaxLength,
             NormalizeAudio = settings.NormalizeAudio,
         };
 
-        _selectedVkCode = settings.HotkeyKey;
-        _selectedModifiers = settings.HotkeyModifiers;
         _selectedInsertVkCode = settings.InsertHotkeyKey;
         _selectedInsertModifiers = settings.InsertHotkeyModifiers;
-        _selectedSelectionVkCode = settings.SelectionHotkeyKey;
-        _selectedSelectionModifiers = settings.SelectionHotkeyModifiers;
 
         LoadMicrophones();
 
-        HotkeyTextBox.Text = _platformInfo.GetHotkeyDisplayName(_selectedModifiers, _selectedVkCode);
         InsertHotkeyTextBox.Text = _platformInfo.GetHotkeyDisplayName(_selectedInsertModifiers, _selectedInsertVkCode);
-        SelectionHotkeyTextBox.Text = _platformInfo.GetHotkeyDisplayName(_selectedSelectionModifiers, _selectedSelectionVkCode);
         PortTextBox.Text = _settings.WebSocketPort.ToString();
         ThreadsTextBox.Text = _settings.ModelThreads.ToString();
         ShowPopupCheckBox.IsChecked = _settings.ShowPopup;
-        ShowAckPopupCheckBox.IsChecked = _settings.ShowAckPopup;
         PopupDurationTextBox.Text = _settings.PopupDurationSeconds.ToString("0.#");
         PopupMaxLengthTextBox.Text = _settings.PopupMaxLength.ToString();
         NormalizeAudioCheckBox.IsChecked = _settings.NormalizeAudio;
         AutostartCheckBox.IsChecked = _autoStartService.IsEnabled();
+
+        // Build WS hotkey action cards
+        foreach (var action in _settings.WsHotkeyActions)
+        {
+            AddWsActionCard(action);
+        }
     }
 
     private void LoadMicrophones()
@@ -108,34 +112,18 @@ public partial class SettingsWindow : Window
             or Key.LeftAlt or Key.RightAlt
             or Key.LWin or Key.RWin;
 
-    private void HotkeyTextBox_GotFocus(object? sender, GotFocusEventArgs e)
-    {
-        HotkeyTextBox.Text = "Press a key...";
-    }
-
-    private void HotkeyTextBox_KeyDown(object? sender, KeyEventArgs e)
-    {
-        e.Handled = true;
-
-        int mod = AvaloniaModifiersToMod(e.KeyModifiers);
-
-        if (IsModifierKey(e.Key))
-        {
-            // Show intermediate state while holding modifiers
-            HotkeyTextBox.Text = mod > 0
-                ? _platformInfo.GetHotkeyDisplayName(mod, 0) + "..."
-                : "Press a key...";
-            return;
-        }
-
-        _selectedModifiers = mod;
-        _selectedVkCode = _platformInfo.KeyToVkCode(e.Key);
-        HotkeyTextBox.Text = _platformInfo.GetHotkeyDisplayName(_selectedModifiers, _selectedVkCode);
-    }
+    // --- Insert hotkey ---
 
     private void InsertHotkeyTextBox_GotFocus(object? sender, GotFocusEventArgs e)
     {
-        InsertHotkeyTextBox.Text = "Press a key...";
+        InsertHotkeyTextBox.Text = "Нажмите клавишу...";
+    }
+
+    private void InsertHotkeyTextBox_LostFocus(object? sender, RoutedEventArgs e)
+    {
+        InsertHotkeyTextBox.Text = _selectedInsertVkCode != 0
+            ? _platformInfo.GetHotkeyDisplayName(_selectedInsertModifiers, _selectedInsertVkCode)
+            : "Нажмите клавишу...";
     }
 
     private void InsertHotkeyTextBox_KeyDown(object? sender, KeyEventArgs e)
@@ -148,7 +136,7 @@ public partial class SettingsWindow : Window
         {
             InsertHotkeyTextBox.Text = mod > 0
                 ? _platformInfo.GetHotkeyDisplayName(mod, 0) + "..."
-                : "Press a key...";
+                : "Нажмите клавишу...";
             return;
         }
 
@@ -157,78 +145,330 @@ public partial class SettingsWindow : Window
         InsertHotkeyTextBox.Text = _platformInfo.GetHotkeyDisplayName(_selectedInsertModifiers, _selectedInsertVkCode);
     }
 
-    private void SelectionHotkeyTextBox_GotFocus(object? sender, GotFocusEventArgs e)
+    // --- WS hotkey action cards ---
+
+    private class WsActionEditor
     {
-        SelectionHotkeyTextBox.Text = "Press a key...";
+        public Border Card = null!;
+        public int Modifiers;
+        public int KeyCode;
+        public WsActionType ActionType;
+        public string? Tag;
+        public TextBox HotkeyTextBox = null!;
+        public TextBox TagTextBox = null!;
+        public RadioButton RadioTranscribe = null!;
+        public RadioButton RadioWithContext = null!;
+        public RadioButton RadioSendTag = null!;
+        public TextBlock? ErrorText;
     }
 
-    private void SelectionHotkeyTextBox_KeyDown(object? sender, KeyEventArgs e)
+    private void AddWsActionCard(HotkeyAction action)
     {
-        e.Handled = true;
-
-        int mod = AvaloniaModifiersToMod(e.KeyModifiers);
-
-        if (IsModifierKey(e.Key))
+        var editor = new WsActionEditor
         {
-            SelectionHotkeyTextBox.Text = mod > 0
-                ? _platformInfo.GetHotkeyDisplayName(mod, 0) + "..."
-                : "Press a key...";
-            return;
-        }
+            Modifiers = action.Modifiers,
+            KeyCode = action.KeyCode,
+            ActionType = action.Action,
+            Tag = action.Tag,
+        };
 
-        _selectedSelectionModifiers = mod;
-        _selectedSelectionVkCode = _platformInfo.KeyToVkCode(e.Key);
-        SelectionHotkeyTextBox.Text = _platformInfo.GetHotkeyDisplayName(_selectedSelectionModifiers, _selectedSelectionVkCode);
+        var card = new Border
+        {
+            Background = Brushes.White,
+            CornerRadius = new CornerRadius(6),
+            Padding = new Thickness(14, 12),
+            BorderBrush = new SolidColorBrush(Color.Parse("#E0E0E0")),
+            BorderThickness = new Thickness(1),
+        };
+
+        var stack = new StackPanel { Spacing = 8 };
+
+        // Row 1: Hotkey + record button + delete
+        var hotkeyRow = new Grid
+        {
+            ColumnDefinitions = ColumnDefinitions.Parse("Auto,*,Auto,Auto"),
+        };
+
+        var hotkeyLabel = new TextBlock
+        {
+            Text = "Клавиша",
+            Foreground = new SolidColorBrush(Color.Parse("#555")),
+            FontSize = 13,
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(0, 0, 8, 0),
+        };
+        Grid.SetColumn(hotkeyLabel, 0);
+
+        var hotkeyTextBox = new TextBox
+        {
+            IsReadOnly = true,
+            Text = _platformInfo.GetHotkeyDisplayName(action.Modifiers, action.KeyCode),
+            Cursor = new Cursor(StandardCursorType.Hand),
+            MinWidth = 100,
+        };
+        editor.HotkeyTextBox = hotkeyTextBox;
+        hotkeyTextBox.GotFocus += (_, _) => hotkeyTextBox.Text = "Нажмите клавишу...";
+        hotkeyTextBox.LostFocus += (_, _) =>
+        {
+            // Restore display if no new key was pressed
+            hotkeyTextBox.Text = editor.KeyCode != 0
+                ? _platformInfo.GetHotkeyDisplayName(editor.Modifiers, editor.KeyCode)
+                : "Нажмите клавишу...";
+        };
+        hotkeyTextBox.KeyDown += (_, e) =>
+        {
+            e.Handled = true;
+            int mod = AvaloniaModifiersToMod(e.KeyModifiers);
+            if (IsModifierKey(e.Key))
+            {
+                hotkeyTextBox.Text = mod > 0
+                    ? _platformInfo.GetHotkeyDisplayName(mod, 0) + "..."
+                    : "Нажмите клавишу...";
+                return;
+            }
+            editor.Modifiers = mod;
+            editor.KeyCode = _platformInfo.KeyToVkCode(e.Key);
+            hotkeyTextBox.Text = _platformInfo.GetHotkeyDisplayName(editor.Modifiers, editor.KeyCode);
+        };
+        Grid.SetColumn(hotkeyTextBox, 1);
+
+        var deleteBtn = new Button
+        {
+            Content = "✕",
+            Margin = new Thickness(8, 0, 0, 0),
+            Padding = new Thickness(6, 2),
+            FontSize = 12,
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+        deleteBtn.Click += (_, _) => RemoveWsActionCard(editor);
+        Grid.SetColumn(deleteBtn, 3);
+
+        hotkeyRow.Children.Add(hotkeyLabel);
+        hotkeyRow.Children.Add(hotkeyTextBox);
+        hotkeyRow.Children.Add(deleteBtn);
+        stack.Children.Add(hotkeyRow);
+
+        // Row 2: Action radio buttons
+        var radioPanel = new StackPanel { Spacing = 2 };
+
+        var radioTranscribe = new RadioButton
+        {
+            Content = "Распознать → отправить текст",
+            FontSize = 12,
+            IsChecked = action.Action == WsActionType.TranscribeAndSend,
+            GroupName = $"action_{_wsActionEditors.Count}",
+        };
+        var radioWithContext = new RadioButton
+        {
+            Content = "Распознать → отправить текст + контекст",
+            FontSize = 12,
+            IsChecked = action.Action == WsActionType.TranscribeWithContext,
+            GroupName = $"action_{_wsActionEditors.Count}",
+        };
+        var radioSendTag = new RadioButton
+        {
+            Content = "Отправить тег (без записи)",
+            FontSize = 12,
+            IsChecked = action.Action == WsActionType.SendTag,
+            GroupName = $"action_{_wsActionEditors.Count}",
+        };
+
+        editor.RadioTranscribe = radioTranscribe;
+        editor.RadioWithContext = radioWithContext;
+        editor.RadioSendTag = radioSendTag;
+
+        radioTranscribe.IsCheckedChanged += (_, _) => { if (radioTranscribe.IsChecked == true) editor.ActionType = WsActionType.TranscribeAndSend; };
+        radioWithContext.IsCheckedChanged += (_, _) => { if (radioWithContext.IsChecked == true) editor.ActionType = WsActionType.TranscribeWithContext; };
+        radioSendTag.IsCheckedChanged += (_, _) => { if (radioSendTag.IsChecked == true) editor.ActionType = WsActionType.SendTag; };
+
+        radioPanel.Children.Add(radioTranscribe);
+        radioPanel.Children.Add(radioWithContext);
+        radioPanel.Children.Add(radioSendTag);
+        stack.Children.Add(radioPanel);
+
+        // Row 3: Tag field
+        var tagRow = new Grid
+        {
+            ColumnDefinitions = ColumnDefinitions.Parse("Auto,*"),
+        };
+        var tagLabel = new TextBlock
+        {
+            Text = "Тег",
+            Foreground = new SolidColorBrush(Color.Parse("#555")),
+            FontSize = 13,
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(0, 0, 8, 0),
+        };
+        Grid.SetColumn(tagLabel, 0);
+
+        var tagTextBox = new TextBox
+        {
+            Text = action.Tag ?? "",
+            Watermark = "необязательно",
+            FontSize = 12,
+        };
+        editor.TagTextBox = tagTextBox;
+        tagTextBox.TextChanged += (_, _) => editor.Tag = string.IsNullOrWhiteSpace(tagTextBox.Text) ? null : tagTextBox.Text.Trim();
+        Grid.SetColumn(tagTextBox, 1);
+
+        tagRow.Children.Add(tagLabel);
+        tagRow.Children.Add(tagTextBox);
+        stack.Children.Add(tagRow);
+
+        // Hint
+        var hint = new TextBlock
+        {
+            Text = "Тег передаётся клиенту. Что с ним делать — решает клиент.",
+            Foreground = new SolidColorBrush(Color.Parse("#999")),
+            FontSize = 11,
+            TextWrapping = TextWrapping.Wrap,
+        };
+        stack.Children.Add(hint);
+
+        // Error text
+        var errorText = new TextBlock
+        {
+            Foreground = Brushes.Red,
+            FontSize = 11,
+            IsVisible = false,
+        };
+        editor.ErrorText = errorText;
+        stack.Children.Add(errorText);
+
+        card.Child = stack;
+        editor.Card = card;
+
+        _wsActionEditors.Add(editor);
+        WsHotkeyList.Children.Add(card);
     }
+
+    private void RemoveWsActionCard(WsActionEditor editor)
+    {
+        _wsActionEditors.Remove(editor);
+        WsHotkeyList.Children.Remove(editor.Card);
+    }
+
+    private void AddAction_Click(object? sender, RoutedEventArgs e)
+    {
+        AddWsActionCard(new HotkeyAction
+        {
+            Modifiers = 0,
+            KeyCode = 0,
+            Action = WsActionType.TranscribeAndSend,
+        });
+    }
+
+    // --- Save / Cancel ---
 
     private void Save_Click(object? sender, RoutedEventArgs e)
     {
         if (!int.TryParse(PortTextBox.Text, out int port) || port < 1 || port > 65535)
         {
-            Console.WriteLine("Validation: Port must be between 1 and 65535.");
+            Console.WriteLine("Валидация: порт должен быть от 1 до 65535.");
             return;
         }
 
         if (!int.TryParse(ThreadsTextBox.Text, out int threads) || threads < 1 || threads > 32)
         {
-            Console.WriteLine("Validation: Threads must be between 1 and 32.");
+            Console.WriteLine("Валидация: потоки должны быть от 1 до 32.");
             return;
         }
 
-        int idx = MicrophoneCombo.SelectedIndex;
-        _settings.MicrophoneDeviceId = idx >= 0 && idx < _devices.Count ? _devices[idx].id : null;
-        _settings.HotkeyModifiers = _selectedModifiers;
-        _settings.HotkeyKey = _selectedVkCode;
-        _settings.InsertHotkeyModifiers = _selectedInsertModifiers;
-        _settings.InsertHotkeyKey = _selectedInsertVkCode;
-        _settings.SelectionHotkeyModifiers = _selectedSelectionModifiers;
-        _settings.SelectionHotkeyKey = _selectedSelectionVkCode;
-        _settings.WebSocketPort = port;
-        _settings.ModelThreads = threads;
         if (!double.TryParse(PopupDurationTextBox.Text, System.Globalization.NumberStyles.Any,
                 System.Globalization.CultureInfo.InvariantCulture, out double popupDuration)
             || popupDuration < 0.5 || popupDuration > 30)
         {
-            Console.WriteLine("Validation: Popup duration must be between 0.5 and 30.");
+            Console.WriteLine("Валидация: длительность уведомления от 0.5 до 30 сек.");
             return;
         }
 
         if (!int.TryParse(PopupMaxLengthTextBox.Text, out int popupMaxLength) || popupMaxLength < 0)
         {
-            Console.WriteLine("Validation: Popup max chars must be 0 or greater.");
+            Console.WriteLine("Валидация: макс. символов должно быть 0 или больше.");
             return;
         }
 
+        // Validate WS hotkey actions
+        bool hasErrors = false;
+        var seenKeys = new HashSet<(int mod, int key)>();
+
+        // Include insert hotkey in conflict check
+        if (_selectedInsertVkCode != 0)
+            seenKeys.Add((_selectedInsertModifiers, _selectedInsertVkCode));
+
+        foreach (var editor in _wsActionEditors)
+        {
+            if (editor.ErrorText != null)
+            {
+                editor.ErrorText.IsVisible = false;
+                editor.ErrorText.Text = "";
+            }
+
+            if (editor.KeyCode == 0)
+            {
+                SetEditorError(editor, "Горячая клавиша не задана");
+                hasErrors = true;
+                continue;
+            }
+
+            var keyPair = (editor.Modifiers, editor.KeyCode);
+            if (!seenKeys.Add(keyPair))
+            {
+                SetEditorError(editor, "Эта клавиша уже занята другим действием");
+                hasErrors = true;
+                continue;
+            }
+
+            if (editor.ActionType == WsActionType.SendTag && string.IsNullOrWhiteSpace(editor.Tag))
+            {
+                SetEditorError(editor, "Для «Отправить тег» необходимо указать тег");
+                hasErrors = true;
+                continue;
+            }
+        }
+
+        if (hasErrors) return;
+
+        // Apply values
+        int idx = MicrophoneCombo.SelectedIndex;
+        _settings.MicrophoneDeviceId = idx >= 0 && idx < _devices.Count ? _devices[idx].id : null;
+        _settings.InsertHotkeyModifiers = _selectedInsertModifiers;
+        _settings.InsertHotkeyKey = _selectedInsertVkCode;
+        _settings.WebSocketPort = port;
+        _settings.ModelThreads = threads;
         _settings.ShowPopup = ShowPopupCheckBox.IsChecked == true;
-        _settings.ShowAckPopup = ShowAckPopupCheckBox.IsChecked == true;
         _settings.PopupDurationSeconds = popupDuration;
         _settings.PopupMaxLength = popupMaxLength;
         _settings.NormalizeAudio = NormalizeAudioCheckBox.IsChecked == true;
+
+        _settings.WsHotkeyActions = _wsActionEditors.Select(ed => new HotkeyAction
+        {
+            Modifiers = ed.Modifiers,
+            KeyCode = ed.KeyCode,
+            Action = ed.ActionType,
+            Tag = ed.Tag,
+            Label = ed.ActionType switch
+            {
+                WsActionType.TranscribeAndSend => "Текст → WS",
+                WsActionType.TranscribeWithContext => "Текст + контекст → WS",
+                WsActionType.SendTag => $"Тег [{ed.Tag}]",
+                _ => null,
+            },
+        }).ToList();
 
         _autoStartService.SetEnabled(AutostartCheckBox.IsChecked == true);
 
         SettingsChanged?.Invoke(_settings);
         Close();
+    }
+
+    private static void SetEditorError(WsActionEditor editor, string message)
+    {
+        if (editor.ErrorText != null)
+        {
+            editor.ErrorText.Text = message;
+            editor.ErrorText.IsVisible = true;
+        }
     }
 
     private void Cancel_Click(object? sender, RoutedEventArgs e)

@@ -1,5 +1,6 @@
 using System.Runtime.InteropServices;
 using Voicer.Core.Interfaces;
+using Voicer.Core.Models;
 
 namespace Voicer.Platform.macOS;
 
@@ -75,30 +76,33 @@ public class MacHotkeyService : IHotkeyService
     [DllImport(CoreFoundation)]
     private static extern IntPtr CFStringCreateWithCString(IntPtr alloc, string cStr, int encoding);
 
+    private class WsHotkeySlot
+    {
+        public ushort MacKeycode;
+        public ulong ExpectedFlags;
+        public bool IsDown;
+    }
+
     private IntPtr _eventTap;
     private IntPtr _runLoopSource;
     private IntPtr _runLoop;
     private Thread? _tapThread;
     private CGEventTapCallBack? _callbackDelegate;
 
-    private ushort _primaryMacKeycode;
-    private ulong _primaryExpectedFlags;
+    // Insert hotkey
     private ushort _insertMacKeycode;
     private ulong _insertExpectedFlags;
-    private ushort _selectionMacKeycode;
-    private ulong _selectionExpectedFlags;
-    private bool _isPrimaryDown;
     private bool _isInsertDown;
-    private bool _isSelectionDown;
+
+    // Dynamic WS hotkeys
+    private List<WsHotkeySlot> _wsSlots = new();
 
     public bool IsAvailable => true;
 
-    public event Action? KeyPressed;
-    public event Action? KeyReleased;
     public event Action? InsertKeyPressed;
     public event Action? InsertKeyReleased;
-    public event Action? SelectionKeyPressed;
-    public event Action? SelectionKeyReleased;
+    public event Action<int>? WsHotkeyPressed;
+    public event Action<int>? WsHotkeyReleased;
 
     /// <summary>
     /// Converts MOD_* bitmask to CGEventFlags mask.
@@ -113,16 +117,21 @@ public class MacHotkeyService : IHotkeyService
         return flags;
     }
 
-    public void Start(int primaryModifiers, int primaryKeyCode,
-        int insertModifiers, int insertKeyCode,
-        int selectionModifiers, int selectionKeyCode)
+    public void Start(int insertModifiers, int insertKeyCode, List<HotkeyAction> wsActions)
     {
-        MacPlatformInfo.VkToMacKeyCode.TryGetValue(primaryKeyCode, out _primaryMacKeycode);
         MacPlatformInfo.VkToMacKeyCode.TryGetValue(insertKeyCode, out _insertMacKeycode);
-        MacPlatformInfo.VkToMacKeyCode.TryGetValue(selectionKeyCode, out _selectionMacKeycode);
-        _primaryExpectedFlags = ModToCGFlags(primaryModifiers);
         _insertExpectedFlags = ModToCGFlags(insertModifiers);
-        _selectionExpectedFlags = ModToCGFlags(selectionModifiers);
+
+        _wsSlots = wsActions.Select(a =>
+        {
+            MacPlatformInfo.VkToMacKeyCode.TryGetValue(a.KeyCode, out ushort macKey);
+            return new WsHotkeySlot
+            {
+                MacKeycode = macKey,
+                ExpectedFlags = ModToCGFlags(a.Modifiers),
+                IsDown = false,
+            };
+        }).ToList();
 
         _tapThread = new Thread(RunEventTap) { IsBackground = true, Name = "CGEventTapLoop" };
         _tapThread.Start();
@@ -170,27 +179,26 @@ public class MacHotkeyService : IHotkeyService
         // Handle modifier key release while hotkey is held down
         if (type == kCGEventFlagsChanged)
         {
-            if (_isPrimaryDown || _isInsertDown || _isSelectionDown)
-            {
-                ulong flags = CGEventGetFlags(@event);
-                ulong currentMod = flags & RelevantModifierMask;
+            ulong flags = CGEventGetFlags(@event);
+            ulong currentMod = flags & RelevantModifierMask;
 
-                if (_isPrimaryDown && currentMod != _primaryExpectedFlags)
+            if (_isInsertDown && currentMod != _insertExpectedFlags)
+            {
+                _isInsertDown = false;
+                InsertKeyReleased?.Invoke();
+            }
+
+            var slots = _wsSlots;
+            for (int i = 0; i < slots.Count; i++)
+            {
+                var slot = slots[i];
+                if (slot.IsDown && currentMod != slot.ExpectedFlags)
                 {
-                    _isPrimaryDown = false;
-                    KeyReleased?.Invoke();
-                }
-                if (_isInsertDown && currentMod != _insertExpectedFlags)
-                {
-                    _isInsertDown = false;
-                    InsertKeyReleased?.Invoke();
-                }
-                if (_isSelectionDown && currentMod != _selectionExpectedFlags)
-                {
-                    _isSelectionDown = false;
-                    SelectionKeyReleased?.Invoke();
+                    slot.IsDown = false;
+                    WsHotkeyReleased?.Invoke(i);
                 }
             }
+
             return @event;
         }
 
@@ -198,21 +206,7 @@ public class MacHotkeyService : IHotkeyService
         ulong eventFlags = CGEventGetFlags(@event);
         ulong currentModifiers = eventFlags & RelevantModifierMask;
 
-        if (keycode == _primaryMacKeycode && currentModifiers == _primaryExpectedFlags)
-        {
-            if (type == kCGEventKeyDown && !_isPrimaryDown)
-            {
-                _isPrimaryDown = true;
-                KeyPressed?.Invoke();
-            }
-            else if (type == kCGEventKeyUp && _isPrimaryDown)
-            {
-                _isPrimaryDown = false;
-                KeyReleased?.Invoke();
-            }
-            return IntPtr.Zero; // Consume
-        }
-
+        // Insert hotkey
         if (keycode == _insertMacKeycode && currentModifiers == _insertExpectedFlags)
         {
             if (type == kCGEventKeyDown && !_isInsertDown)
@@ -228,19 +222,25 @@ public class MacHotkeyService : IHotkeyService
             return IntPtr.Zero; // Consume
         }
 
-        if (keycode == _selectionMacKeycode && currentModifiers == _selectionExpectedFlags)
+        // Dynamic WS hotkeys
+        var wsSlots = _wsSlots;
+        for (int i = 0; i < wsSlots.Count; i++)
         {
-            if (type == kCGEventKeyDown && !_isSelectionDown)
+            var slot = wsSlots[i];
+            if (keycode == slot.MacKeycode && currentModifiers == slot.ExpectedFlags)
             {
-                _isSelectionDown = true;
-                SelectionKeyPressed?.Invoke();
+                if (type == kCGEventKeyDown && !slot.IsDown)
+                {
+                    slot.IsDown = true;
+                    WsHotkeyPressed?.Invoke(i);
+                }
+                else if (type == kCGEventKeyUp && slot.IsDown)
+                {
+                    slot.IsDown = false;
+                    WsHotkeyReleased?.Invoke(i);
+                }
+                return IntPtr.Zero; // Consume
             }
-            else if (type == kCGEventKeyUp && _isSelectionDown)
-            {
-                _isSelectionDown = false;
-                SelectionKeyReleased?.Invoke();
-            }
-            return IntPtr.Zero; // Consume
         }
 
         return @event; // Pass through
@@ -263,14 +263,6 @@ public class MacHotkeyService : IHotkeyService
         if (_eventTap != IntPtr.Zero) { CFRelease(_eventTap); _eventTap = IntPtr.Zero; }
     }
 
-    public void UpdateHotkey(int modifiers, int keyCode)
-    {
-        if (MacPlatformInfo.VkToMacKeyCode.TryGetValue(keyCode, out var macKey))
-            _primaryMacKeycode = macKey;
-        _primaryExpectedFlags = ModToCGFlags(modifiers);
-        _isPrimaryDown = false;
-    }
-
     public void UpdateInsertHotkey(int modifiers, int keyCode)
     {
         if (MacPlatformInfo.VkToMacKeyCode.TryGetValue(keyCode, out var macKey))
@@ -279,12 +271,18 @@ public class MacHotkeyService : IHotkeyService
         _isInsertDown = false;
     }
 
-    public void UpdateSelectionHotkey(int modifiers, int keyCode)
+    public void UpdateWsHotkeys(List<HotkeyAction> wsActions)
     {
-        if (MacPlatformInfo.VkToMacKeyCode.TryGetValue(keyCode, out var macKey))
-            _selectionMacKeycode = macKey;
-        _selectionExpectedFlags = ModToCGFlags(modifiers);
-        _isSelectionDown = false;
+        _wsSlots = wsActions.Select(a =>
+        {
+            MacPlatformInfo.VkToMacKeyCode.TryGetValue(a.KeyCode, out ushort macKey);
+            return new WsHotkeySlot
+            {
+                MacKeycode = macKey,
+                ExpectedFlags = ModToCGFlags(a.Modifiers),
+                IsDown = false,
+            };
+        }).ToList();
     }
 
     public void Dispose()

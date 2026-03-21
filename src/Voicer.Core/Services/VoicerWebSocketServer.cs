@@ -30,10 +30,7 @@ public class VoicerWebSocketServer : IDisposable
     /// Fired when the active (claimed) client changes. Parameter is true if there is an active client.
     /// </summary>
     public event Action<bool>? ActiveClientChanged;
-    /// <summary>
-    /// Fired when a client sends an ack message. Parameters: (status, message?).
-    /// </summary>
-    public event Action<string, string?>? ClientAckReceived;
+
 
     public void Start(int port)
     {
@@ -133,18 +130,7 @@ public class VoicerWebSocketServer : IDisposable
                     }
                     break;
 
-                case "ack":
-                    {
-                        var status = doc.RootElement.TryGetProperty("status", out var s) ? s.GetString() : null;
-                        var msg = doc.RootElement.TryGetProperty("message", out var m) ? m.GetString() : null;
-                        if (status != null)
-                        {
-                            ClientAckReceived?.Invoke(status, msg);
-                        }
-                    }
-                    break;
-
-                // Ignore ping and unknown messages
+                // Ignore ack, ping and unknown messages
             }
         }
         catch
@@ -153,14 +139,22 @@ public class VoicerWebSocketServer : IDisposable
         }
     }
 
-    public void BroadcastTranscription(string text)
+    /// <summary>
+    /// Sends a transcription message to the active client (protocol v2).
+    /// Fields context and tag are included only when non-null.
+    /// </summary>
+    public void BroadcastTranscription(string text, string? context = null, string? tag = null)
     {
-        var message = JsonSerializer.Serialize(new
+        var obj = new Dictionary<string, object>
         {
-            type = "transcription",
-            text,
-            timestamp = DateTime.UtcNow.ToString("o")
-        });
+            ["type"] = "transcription",
+            ["text"] = text,
+            ["timestamp"] = DateTime.UtcNow.ToString("o"),
+        };
+        if (context != null) obj["context"] = context;
+        if (tag != null) obj["tag"] = tag;
+
+        var message = JsonSerializer.Serialize(obj);
 
         // Send transcription ONLY to the active client
         lock (_lock)

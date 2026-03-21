@@ -1,3 +1,5 @@
+using Voicer.Core.Models;
+
 namespace Voicer.Core.Interfaces;
 
 public interface IHotkeyService : IDisposable
@@ -7,18 +9,16 @@ public interface IHotkeyService : IDisposable
     /// </summary>
     bool IsAvailable { get; }
 
-    event Action? KeyPressed;
-    event Action? KeyReleased;
+    // Insert hotkey (F6) — unchanged
     event Action? InsertKeyPressed;
     event Action? InsertKeyReleased;
-    event Action? SelectionKeyPressed;
-    event Action? SelectionKeyReleased;
 
-    void Start(int primaryModifiers, int primaryKeyCode,
-        int insertModifiers, int insertKeyCode,
-        int selectionModifiers, int selectionKeyCode);
+    // Dynamic WS hotkeys — index corresponds to position in WsHotkeyActions list
+    event Action<int>? WsHotkeyPressed;
+    event Action<int>? WsHotkeyReleased;
+
+    void Start(int insertModifiers, int insertKeyCode, List<HotkeyAction> wsActions);
     void Stop();
-    void UpdateHotkey(int modifiers, int keyCode);
     void UpdateInsertHotkey(int modifiers, int keyCode);
-    void UpdateSelectionHotkey(int modifiers, int keyCode);
+    void UpdateWsHotkeys(List<HotkeyAction> wsActions);
 }

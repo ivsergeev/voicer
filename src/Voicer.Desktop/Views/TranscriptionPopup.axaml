@@ -12,10 +12,41 @@
         PointerPressed="Window_PointerPressed">
     <Border x:Name="PopupBorder" CornerRadius="8" Padding="14,10"
             BorderBrush="#60FFFFFF" BorderThickness="1">
-        <TextBlock x:Name="MessageText"
-                   Text=""
-                   Foreground="White"
-                   FontSize="14"
-                   TextWrapping="Wrap" />
+        <StackPanel Spacing="4">
+            <!-- Header: status dot + text + tag pill -->
+            <StackPanel x:Name="HeaderPanel" Orientation="Horizontal" Spacing="6">
+                <TextBlock x:Name="StatusDot" FontSize="12" VerticalAlignment="Center"/>
+                <TextBlock x:Name="HeaderText" Foreground="White" FontSize="13" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                <Border x:Name="TagPill" CornerRadius="4" Padding="6,2" Background="#40FFFFFF" IsVisible="False"
+                        VerticalAlignment="Center">
+                    <TextBlock x:Name="TagText" Foreground="White" FontSize="11" FontWeight="Medium"/>
+                </Border>
+            </StackPanel>
+
+            <!-- Transcription text -->
+            <TextBlock x:Name="MessageText"
+                       Text=""
+                       Foreground="White"
+                       FontSize="14"
+                       TextWrapping="Wrap"
+                       IsVisible="False"/>
+
+            <!-- Context preview (1 line) -->
+            <Border x:Name="ContextBorder" CornerRadius="4" Padding="8,4" Background="#20FFFFFF"
+                    IsVisible="False">
+                <TextBlock x:Name="ContextText"
+                           Foreground="#CCFFFFFF"
+                           FontSize="12"
+                           FontFamily="Consolas,Menlo,monospace"
+                           TextTrimming="CharacterEllipsis"
+                           MaxLines="1"/>
+            </Border>
+
+            <!-- Error/info message -->
+            <TextBlock x:Name="InfoText"
+                       Foreground="#CCFFFFFF"
+                       FontSize="12"
+                       IsVisible="False"/>
+        </StackPanel>
     </Border>
 </Window>

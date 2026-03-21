@@ -1,5 +1,6 @@
 using System.Runtime.InteropServices;
 using Voicer.Core.Interfaces;
+using Voicer.Core.Models;
 
 namespace Voicer.Platform.Windows;
 
@@ -55,46 +56,50 @@ public class WindowsHotkeyService : IHotkeyService
         public IntPtr dwExtraInfo;
     }
 
+    private class WsHotkeySlot
+    {
+        public int VkCode;
+        public int Modifiers;
+        public bool IsDown;
+    }
+
     private IntPtr _hookId = IntPtr.Zero;
     private readonly LowLevelKeyboardProc _proc;
-    private int _targetVkCode;
-    private int _targetModifiers;
+
+    // Insert hotkey (F6)
     private int _insertVkCode;
     private int _insertModifiers;
-    private int _selectionVkCode;
-    private int _selectionModifiers;
-    private bool _isKeyDown;
     private bool _isInsertKeyDown;
-    private bool _isSelectionKeyDown;
+
+    // Dynamic WS hotkeys
+    private List<WsHotkeySlot> _wsSlots = new();
+
     private int _consumeModifiers; // MOD_* bits of modifier releases to swallow
 
     public bool IsAvailable => true;
 
-    public event Action? KeyPressed;
-    public event Action? KeyReleased;
     public event Action? InsertKeyPressed;
     public event Action? InsertKeyReleased;
-    public event Action? SelectionKeyPressed;
-    public event Action? SelectionKeyReleased;
+    public event Action<int>? WsHotkeyPressed;
+    public event Action<int>? WsHotkeyReleased;
 
     public WindowsHotkeyService()
     {
         _proc = HookCallback;
     }
 
-    public void Start(int primaryModifiers, int primaryKeyCode,
-        int insertModifiers, int insertKeyCode,
-        int selectionModifiers, int selectionKeyCode)
+    public void Start(int insertModifiers, int insertKeyCode, List<HotkeyAction> wsActions)
     {
-        _targetModifiers = primaryModifiers;
-        _targetVkCode = primaryKeyCode;
         _insertModifiers = insertModifiers;
         _insertVkCode = insertKeyCode;
-        _selectionModifiers = selectionModifiers;
-        _selectionVkCode = selectionKeyCode;
-        _isKeyDown = false;
         _isInsertKeyDown = false;
-        _isSelectionKeyDown = false;
+
+        _wsSlots = wsActions.Select(a => new WsHotkeySlot
+        {
+            VkCode = a.KeyCode,
+            Modifiers = a.Modifiers,
+            IsDown = false,
+        }).ToList();
 
         using var process = System.Diagnostics.Process.GetCurrentProcess();
         using var module = process.MainModule!;
@@ -113,14 +118,6 @@ public class WindowsHotkeyService : IHotkeyService
         }
     }
 
-    public void UpdateHotkey(int modifiers, int keyCode)
-    {
-        _targetModifiers = modifiers;
-        _targetVkCode = keyCode;
-        _isKeyDown = false;
-        _consumeModifiers = 0;
-    }
-
     public void UpdateInsertHotkey(int modifiers, int keyCode)
     {
         _insertModifiers = modifiers;
@@ -129,11 +126,14 @@ public class WindowsHotkeyService : IHotkeyService
         _consumeModifiers = 0;
     }
 
-    public void UpdateSelectionHotkey(int modifiers, int keyCode)
+    public void UpdateWsHotkeys(List<HotkeyAction> wsActions)
     {
-        _selectionModifiers = modifiers;
-        _selectionVkCode = keyCode;
-        _isSelectionKeyDown = false;
+        _wsSlots = wsActions.Select(a => new WsHotkeySlot
+        {
+            VkCode = a.KeyCode,
+            Modifiers = a.Modifiers,
+            IsDown = false,
+        }).ToList();
         _consumeModifiers = 0;
     }
 
@@ -157,39 +157,6 @@ public class WindowsHotkeyService : IHotkeyService
         {
             var kbd = Marshal.PtrToStructure<KBDLLHOOKSTRUCT>(lParam);
             int msg = wParam.ToInt32();
-
-            // --- Primary hotkey ---
-            if (kbd.vkCode == _targetVkCode)
-            {
-                int currentMod = GetCurrentModifiers();
-                if (currentMod == _targetModifiers)
-                {
-                    if ((msg == WM_KEYDOWN || msg == WM_SYSKEYDOWN) && !_isKeyDown)
-                    {
-                        _isKeyDown = true;
-                        _consumeModifiers |= _targetModifiers;
-                        KeyPressed?.Invoke();
-                    }
-                    else if ((msg == WM_KEYUP || msg == WM_SYSKEYUP) && _isKeyDown)
-                    {
-                        _isKeyDown = false;
-                        KeyReleased?.Invoke();
-                    }
-
-                    return (IntPtr)1; // Consume the key
-                }
-            }
-
-            // Release primary hotkey if a REQUIRED modifier was released while held
-            if (_isKeyDown && _targetModifiers != 0 && (msg == WM_KEYUP || msg == WM_SYSKEYUP))
-            {
-                if (IsModifierVk(kbd.vkCode) && (_targetModifiers & VkToModBit(kbd.vkCode)) != 0)
-                {
-                    _isKeyDown = false;
-                    KeyReleased?.Invoke();
-                    // Fall through to the consume check below
-                }
-            }
 
             // --- Insert hotkey ---
             if (kbd.vkCode == _insertVkCode)
@@ -220,46 +187,47 @@ public class WindowsHotkeyService : IHotkeyService
                 {
                     _isInsertKeyDown = false;
                     InsertKeyReleased?.Invoke();
-                    // Fall through to the consume check below
                 }
             }
 
-            // --- Selection hotkey (WS + selected text) ---
-            if (kbd.vkCode == _selectionVkCode)
+            // --- Dynamic WS hotkeys ---
+            var slots = _wsSlots; // snapshot reference
+            for (int i = 0; i < slots.Count; i++)
             {
-                int currentMod = GetCurrentModifiers();
-                if (currentMod == _selectionModifiers)
+                var slot = slots[i];
+                if (kbd.vkCode == slot.VkCode)
                 {
-                    if ((msg == WM_KEYDOWN || msg == WM_SYSKEYDOWN) && !_isSelectionKeyDown)
+                    int currentMod = GetCurrentModifiers();
+                    if (currentMod == slot.Modifiers)
                     {
-                        _isSelectionKeyDown = true;
-                        _consumeModifiers |= _selectionModifiers;
-                        SelectionKeyPressed?.Invoke();
-                    }
-                    else if ((msg == WM_KEYUP || msg == WM_SYSKEYUP) && _isSelectionKeyDown)
-                    {
-                        _isSelectionKeyDown = false;
-                        SelectionKeyReleased?.Invoke();
-                    }
+                        if ((msg == WM_KEYDOWN || msg == WM_SYSKEYDOWN) && !slot.IsDown)
+                        {
+                            slot.IsDown = true;
+                            _consumeModifiers |= slot.Modifiers;
+                            WsHotkeyPressed?.Invoke(i);
+                        }
+                        else if ((msg == WM_KEYUP || msg == WM_SYSKEYUP) && slot.IsDown)
+                        {
+                            slot.IsDown = false;
+                            WsHotkeyReleased?.Invoke(i);
+                        }
 
-                    return (IntPtr)1; // Consume the key
+                        return (IntPtr)1; // Consume the key
+                    }
                 }
-            }
 
-            // Release selection hotkey if a REQUIRED modifier was released while held
-            if (_isSelectionKeyDown && _selectionModifiers != 0 && (msg == WM_KEYUP || msg == WM_SYSKEYUP))
-            {
-                if (IsModifierVk(kbd.vkCode) && (_selectionModifiers & VkToModBit(kbd.vkCode)) != 0)
+                // Release WS hotkey if a REQUIRED modifier was released while held
+                if (slot.IsDown && slot.Modifiers != 0 && (msg == WM_KEYUP || msg == WM_SYSKEYUP))
                 {
-                    _isSelectionKeyDown = false;
-                    SelectionKeyReleased?.Invoke();
-                    // Fall through to the consume check below
+                    if (IsModifierVk(kbd.vkCode) && (slot.Modifiers & VkToModBit(kbd.vkCode)) != 0)
+                    {
+                        slot.IsDown = false;
+                        WsHotkeyReleased?.Invoke(i);
+                    }
                 }
             }
 
             // Consume modifier key releases that were part of a hotkey activation.
-            // Without this, a lone Alt press+release (with the main key consumed)
-            // would activate the target app's menu bar, breaking subsequent paste.
             if (_consumeModifiers != 0
                 && (msg == WM_KEYUP || msg == WM_SYSKEYUP)
                 && IsModifierVk(kbd.vkCode))

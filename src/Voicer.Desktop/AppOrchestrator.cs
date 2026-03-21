@@ -17,11 +17,13 @@ public class AppOrchestrator : IDisposable
     private AppSettings _settings = null!;
     private volatile AppState _state = AppState.Idle;
     private bool _insertMode;
-    private bool _selectionMode;
     private volatile bool _paused;
     private string? _selectedText;
     private volatile int _wsClientCount;
     private volatile bool _hasActiveClaim;
+
+    // Current WS hotkey action being executed (set on press, read on release/process)
+    private HotkeyAction? _currentWsAction;
 
     public AppSettings Settings => _settings;
 
@@ -30,11 +32,13 @@ public class AppOrchestrator : IDisposable
     // Events for UI layer
     public event Action<string, string>? StateChanged;         // (status, iconType)
     public event Action<int>? ClientCountChanged;
-    public event Action<string, string>? TranscriptionReady;    // (text, mode: "insert"|"ws"|"ws_sel")
+    /// <summary>
+    /// Fired when transcription is ready. Parameters: (text, context, tag, mode).
+    /// mode: "insert" | "ws" | "ws_sel" | "ws_tag"
+    /// </summary>
+    public event Action<string, string?, string?, string>? TranscriptionReady;
     public event Action<string>? ErrorOccurred;
     public event Action<bool>? ActiveClientChanged;            // true = has active client
-    public event Action<string, string?>? ClientAckReceived;   // (status, message?) from WS client
-    // Clipboard is now handled directly via ITextInsertionService
 
     public AppOrchestrator(
         IHotkeyService hotkeyService,
@@ -79,7 +83,7 @@ public class AppOrchestrator : IDisposable
                 StateChanged?.Invoke(IdleStatus, IdleIconType);
             }
         };
-        _wsServer.ClientAckReceived += (status, msg) => ClientAckReceived?.Invoke(status, msg);
+
 
         try
         {
@@ -112,19 +116,17 @@ public class AppOrchestrator : IDisposable
         // Speech recognition
         InitializeSpeechModel();
 
-        // Hotkey (push-to-talk)
-        _hotkeyService.KeyPressed += OnHotkeyPressed;
-        _hotkeyService.KeyReleased += OnHotkeyReleased;
+        // Hotkeys
         _hotkeyService.InsertKeyPressed += OnInsertHotkeyPressed;
         _hotkeyService.InsertKeyReleased += OnInsertHotkeyReleased;
-        _hotkeyService.SelectionKeyPressed += OnSelectionHotkeyPressed;
-        _hotkeyService.SelectionKeyReleased += OnSelectionHotkeyReleased;
+        _hotkeyService.WsHotkeyPressed += OnWsHotkeyPressed;
+        _hotkeyService.WsHotkeyReleased += OnWsHotkeyReleased;
 
         try
         {
-            _hotkeyService.Start(_settings.HotkeyModifiers, _settings.HotkeyKey,
+            _hotkeyService.Start(
                 _settings.InsertHotkeyModifiers, _settings.InsertHotkeyKey,
-                _settings.SelectionHotkeyModifiers, _settings.SelectionHotkeyKey);
+                _settings.WsHotkeyActions);
 
             if (!_hotkeyService.IsAvailable)
             {
@@ -136,9 +138,11 @@ public class AppOrchestrator : IDisposable
             }
             else
             {
-                Console.WriteLine($"Push-to-talk hotkey (WS): {_platformInfo.GetHotkeyDisplayName(_settings.HotkeyModifiers, _settings.HotkeyKey)}");
                 Console.WriteLine($"Push-to-talk hotkey (Insert): {_platformInfo.GetHotkeyDisplayName(_settings.InsertHotkeyModifiers, _settings.InsertHotkeyKey)}");
-                Console.WriteLine($"Push-to-talk hotkey (WS+Selection): {_platformInfo.GetHotkeyDisplayName(_settings.SelectionHotkeyModifiers, _settings.SelectionHotkeyKey)}");
+                foreach (var action in _settings.WsHotkeyActions)
+                {
+                    Console.WriteLine($"  WS hotkey: {_platformInfo.GetHotkeyDisplayName(action.Modifiers, action.KeyCode)} → {action.Action}{(action.Tag != null ? $" [{action.Tag}]" : "")}");
+                }
             }
         }
         catch (Exception ex)
@@ -269,6 +273,8 @@ public class AppOrchestrator : IDisposable
 
         if (!insertMode) _wsServer.BroadcastStatus("recording");
 
+        bool isSelectionMode = _currentWsAction?.Action == WsActionType.TranscribeWithContext;
+
         string iconType, status;
         if (insertMode)
         {
@@ -277,16 +283,16 @@ public class AppOrchestrator : IDisposable
         }
         else if (_hasActiveClaim)
         {
-            iconType = _selectionMode ? "recording_ws_sel" : "recording_ws";
-            status = _selectionMode ? "Recording (ws+sel)" : "Recording (ws)";
+            iconType = isSelectionMode ? "recording_ws_sel" : "recording_ws";
+            status = isSelectionMode ? "Recording (ws+sel)" : "Recording (ws)";
         }
         else
         {
-            iconType = _selectionMode ? "recording_ws_sel_noclaim" : "recording_ws_noclaim";
-            status = _selectionMode ? "Recording (ws+sel, no claim)" : "Recording (ws, no claim)";
+            iconType = isSelectionMode ? "recording_ws_sel_noclaim" : "recording_ws_noclaim";
+            status = isSelectionMode ? "Recording (ws+sel, no claim)" : "Recording (ws, no claim)";
         }
         StateChanged?.Invoke(status, iconType);
-        Console.WriteLine($"[REC] Recording started ({(insertMode ? "insert" : _selectionMode ? "ws+sel" : "ws")})...");
+        Console.WriteLine($"[REC] Recording started ({(insertMode ? "insert" : isSelectionMode ? "ws+sel" : "ws")})...");
     }
 
     private void StopRecordingAndProcess()
@@ -294,7 +300,8 @@ public class AppOrchestrator : IDisposable
         if (_state != AppState.Recording) return;
 
         var insertMode = _insertMode;
-        var selectionMode = _selectionMode;
+        var currentAction = _currentWsAction;
+        bool isSelectionMode = currentAction?.Action == WsActionType.TranscribeWithContext;
         _state = AppState.Processing;
         _audioCaptureService.StopRecording();
 
@@ -302,9 +309,9 @@ public class AppOrchestrator : IDisposable
         if (insertMode)
             procIconType = "processing_insert";
         else if (_hasActiveClaim)
-            procIconType = selectionMode ? "processing_ws_sel" : "processing_ws";
+            procIconType = isSelectionMode ? "processing_ws_sel" : "processing_ws";
         else
-            procIconType = selectionMode ? "processing_ws_sel_noclaim" : "processing_ws_noclaim";
+            procIconType = isSelectionMode ? "processing_ws_sel_noclaim" : "processing_ws_noclaim";
         StateChanged?.Invoke("Processing", procIconType);
         if (!insertMode) _wsServer.BroadcastStatus("processing");
         Console.WriteLine("[REC] Recording stopped. Processing...");
@@ -331,18 +338,20 @@ public class AppOrchestrator : IDisposable
                 {
                     Console.WriteLine($"  >>> {text}");
 
-                    var mode = insertMode ? "insert" : selectionMode ? "ws_sel" : "ws";
-
                     if (insertMode)
                     {
                         await PasteTextAtCursor(text);
-                        TranscriptionReady?.Invoke(text, mode);
+                        TranscriptionReady?.Invoke(text, null, null, "insert");
                     }
                     else
                     {
-                        var fullText = _selectedText != null ? $"{_selectedText} {text}" : text;
-                        _wsServer.BroadcastTranscription(fullText);
-                        TranscriptionReady?.Invoke(fullText, mode);
+                        // Protocol v2: send text, context, tag as separate fields
+                        string? context = _selectedText;
+                        string? tag = currentAction?.Tag;
+                        string mode = isSelectionMode ? "ws_sel" : "ws";
+
+                        _wsServer.BroadcastTranscription(text, context, tag);
+                        TranscriptionReady?.Invoke(text, context, tag, mode);
                     }
                 }
                 else
@@ -400,41 +409,58 @@ public class AppOrchestrator : IDisposable
         }
     }
 
-    private void OnHotkeyPressed()
-    {
-        if (_paused || _state != AppState.Idle || !_speechService.IsInitialized) return;
-        _selectedText = null;
-        _selectionMode = false;
-        StartRecording(insertMode: false);
-    }
-
-    private void OnHotkeyReleased() => StopRecordingAndProcess();
+    // --- Insert hotkey (F6) ---
 
     private void OnInsertHotkeyPressed()
     {
         if (_paused || _state != AppState.Idle || !_speechService.IsInitialized) return;
         _selectedText = null;
-        _selectionMode = false;
+        _currentWsAction = null;
         StartRecording(insertMode: true);
     }
 
     private void OnInsertHotkeyReleased() => StopRecordingAndProcess();
 
-    private async void OnSelectionHotkeyPressed()
+    // --- Dynamic WS hotkeys ---
+
+    private void OnWsHotkeyPressed(int index)
     {
         if (_paused || _state != AppState.Idle || !_speechService.IsInitialized) return;
-        _selectedText = null;
-        _selectionMode = true;
+        if (index < 0 || index >= _settings.WsHotkeyActions.Count) return;
 
-        // Start recording immediately — icon changes to purple right away
+        var action = _settings.WsHotkeyActions[index];
+        _currentWsAction = action;
+        _selectedText = null;
+
+        if (action.Action == WsActionType.SendTag)
+        {
+            // SendTag: no recording, immediately send tag
+            var tag = action.Tag ?? "";
+            Console.WriteLine($"[WS] SendTag: [{tag}]");
+            _wsServer.BroadcastTranscription("", tag: tag);
+            TranscriptionReady?.Invoke("", null, tag, "ws_tag");
+            return;
+        }
+
+        // TranscribeAndSend or TranscribeWithContext: start recording
         StartRecording(insertMode: false);
 
-        // Capture selected text in parallel with recording;
-        // it will be ready by the time speech recognition completes
-        await CaptureSelectedText();
+        if (action.Action == WsActionType.TranscribeWithContext)
+        {
+            // Capture selected text in parallel with recording
+            _ = CaptureSelectedText();
+        }
     }
 
-    private void OnSelectionHotkeyReleased() => StopRecordingAndProcess();
+    private void OnWsHotkeyReleased(int index)
+    {
+        // For SendTag actions, recording was never started — nothing to do
+        if (index >= 0 && index < _settings.WsHotkeyActions.Count
+            && _settings.WsHotkeyActions[index].Action == WsActionType.SendTag)
+            return;
+
+        StopRecordingAndProcess();
+    }
 
     public void PauseForSettings()
     {
@@ -457,9 +483,8 @@ public class AppOrchestrator : IDisposable
 
         _audioCaptureService.DeviceId = _settings.MicrophoneDeviceId;
         _audioCaptureService.NormalizeAudio = _settings.NormalizeAudio;
-        _hotkeyService.UpdateHotkey(_settings.HotkeyModifiers, _settings.HotkeyKey);
         _hotkeyService.UpdateInsertHotkey(_settings.InsertHotkeyModifiers, _settings.InsertHotkeyKey);
-        _hotkeyService.UpdateSelectionHotkey(_settings.SelectionHotkeyModifiers, _settings.SelectionHotkeyKey);
+        _hotkeyService.UpdateWsHotkeys(_settings.WsHotkeyActions);
 
         _paused = false;
     }

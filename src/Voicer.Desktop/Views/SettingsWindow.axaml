@@ -1,13 +1,16 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         x:Class="Voicer.Desktop.Views.SettingsWindow"
-        Title="Voicer Settings" SizeToContent="Height" Width="460"
+        Title="Настройки Voicer" SizeToContent="Height" Width="500"
+        MaxHeight="700"
         WindowStartupLocation="CenterScreen"
         CanResize="False"
         Background="#F5F5F7">
 
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
     <Grid Margin="24,20">
         <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
@@ -17,86 +20,85 @@
 
         <!-- Header -->
         <StackPanel Grid.Row="0" Margin="0,0,0,20">
-            <TextBlock Text="Settings" Foreground="#222" FontSize="20" FontWeight="SemiBold"/>
-            <TextBlock Text="Configure voice recognition and hotkeys" Foreground="#999" FontSize="12" Margin="0,2,0,0"/>
+            <TextBlock Text="Настройки" Foreground="#222" FontSize="20" FontWeight="SemiBold"/>
+            <TextBlock Text="Распознавание речи и горячие клавиши" Foreground="#999" FontSize="12" Margin="0,2,0,0"/>
         </StackPanel>
 
         <!-- Audio section -->
         <StackPanel Grid.Row="1" Margin="0,0,0,14">
-            <TextBlock Text="AUDIO" Foreground="#888" FontSize="11" FontWeight="SemiBold" Margin="0,0,0,6"/>
+            <TextBlock Text="АУДИО" Foreground="#888" FontSize="11" FontWeight="SemiBold" Margin="0,0,0,6"/>
             <Border Background="White" CornerRadius="6" Padding="14,12" BorderBrush="#E0E0E0" BorderThickness="1">
                 <StackPanel>
                     <Grid RowDefinitions="Auto,Auto" ColumnDefinitions="120,*">
-                        <TextBlock Grid.Row="0" Grid.Column="0" Text="Microphone" Foreground="#555" FontSize="13" VerticalAlignment="Center"/>
+                        <TextBlock Grid.Row="0" Grid.Column="0" Text="Микрофон" Foreground="#555" FontSize="13" VerticalAlignment="Center"/>
                         <ComboBox Grid.Row="0" Grid.Column="1" x:Name="MicrophoneCombo" Margin="0,0,0,8"/>
 
-                        <TextBlock Grid.Row="1" Grid.Column="0" Text="Threads" Foreground="#555" FontSize="13" VerticalAlignment="Center"/>
+                        <TextBlock Grid.Row="1" Grid.Column="0" Text="Потоки" Foreground="#555" FontSize="13" VerticalAlignment="Center"/>
                         <TextBox Grid.Row="1" Grid.Column="1" x:Name="ThreadsTextBox" Width="60" HorizontalAlignment="Left"/>
                     </Grid>
-                    <CheckBox x:Name="NormalizeAudioCheckBox" Content="Normalize audio (peak normalization)" Margin="0,8,0,0"/>
+                    <CheckBox x:Name="NormalizeAudioCheckBox" Content="Нормализация аудио (пиковая)" Margin="0,8,0,0"/>
                 </StackPanel>
             </Border>
         </StackPanel>
 
-        <!-- Hotkeys section -->
+        <!-- Insert hotkey (F6) -->
         <StackPanel Grid.Row="2" Margin="0,0,0,14">
-            <TextBlock Text="HOTKEYS" Foreground="#888" FontSize="11" FontWeight="SemiBold" Margin="0,0,0,6"/>
+            <TextBlock Text="ВСТАВКА В КУРСОР" Foreground="#888" FontSize="11" FontWeight="SemiBold" Margin="0,0,0,6"/>
             <Border Background="White" CornerRadius="6" Padding="14,12" BorderBrush="#E0E0E0" BorderThickness="1">
-                <Grid RowDefinitions="Auto,Auto,Auto" ColumnDefinitions="120,*">
-                    <TextBlock Grid.Row="0" Grid.Column="0" Text="Insert at cursor" Foreground="#555" FontSize="13" VerticalAlignment="Center"/>
-                    <TextBox Grid.Row="0" Grid.Column="1" x:Name="InsertHotkeyTextBox"
-                             IsReadOnly="True" Margin="0,0,0,8" Cursor="Hand"
-                             KeyDown="InsertHotkeyTextBox_KeyDown"
-                             GotFocus="InsertHotkeyTextBox_GotFocus"/>
-
-                    <TextBlock Grid.Row="1" Grid.Column="0" Text="WebSocket" Foreground="#555" FontSize="13" VerticalAlignment="Center"/>
-                    <TextBox Grid.Row="1" Grid.Column="1" x:Name="HotkeyTextBox"
-                             IsReadOnly="True" Margin="0,0,0,8" Cursor="Hand"
-                             KeyDown="HotkeyTextBox_KeyDown"
-                             GotFocus="HotkeyTextBox_GotFocus"/>
-
-                    <TextBlock Grid.Row="2" Grid.Column="0" Text="WS + selection" Foreground="#555" FontSize="13" VerticalAlignment="Center"/>
-                    <TextBox Grid.Row="2" Grid.Column="1" x:Name="SelectionHotkeyTextBox"
+                <Grid ColumnDefinitions="120,*">
+                    <TextBlock Grid.Column="0" Text="Горячая клавиша" Foreground="#555" FontSize="13" VerticalAlignment="Center"/>
+                    <TextBox Grid.Column="1" x:Name="InsertHotkeyTextBox"
                              IsReadOnly="True" Cursor="Hand"
-                             KeyDown="SelectionHotkeyTextBox_KeyDown"
-                             GotFocus="SelectionHotkeyTextBox_GotFocus"/>
+                             KeyDown="InsertHotkeyTextBox_KeyDown"
+                             GotFocus="InsertHotkeyTextBox_GotFocus"
+                             LostFocus="InsertHotkeyTextBox_LostFocus"/>
                 </Grid>
             </Border>
         </StackPanel>
 
+        <!-- WS Hotkey Actions (dynamic list) -->
+        <StackPanel Grid.Row="3" Margin="0,0,0,14">
+            <TextBlock Text="WS ГОРЯЧИЕ КЛАВИШИ" Foreground="#888" FontSize="11" FontWeight="SemiBold" Margin="0,0,0,6"/>
+            <StackPanel x:Name="WsHotkeyList" Spacing="6"/>
+            <Button Content="+ Добавить действие" Margin="0,8,0,0"
+                    HorizontalAlignment="Left"
+                    Click="AddAction_Click"
+                    FontSize="12" Padding="10,6"/>
+        </StackPanel>
+
         <!-- General section -->
-        <StackPanel Grid.Row="3" Margin="0,0,0,0">
-            <TextBlock Text="GENERAL" Foreground="#888" FontSize="11" FontWeight="SemiBold" Margin="0,0,0,6"/>
+        <StackPanel Grid.Row="4" Margin="0,0,0,0">
+            <TextBlock Text="ОБЩИЕ" Foreground="#888" FontSize="11" FontWeight="SemiBold" Margin="0,0,0,6"/>
             <Border Background="White" CornerRadius="6" Padding="14,12" BorderBrush="#E0E0E0" BorderThickness="1">
                 <StackPanel>
                     <Grid ColumnDefinitions="120,*" Margin="0,0,0,10">
-                        <TextBlock Grid.Column="0" Text="WS Port" Foreground="#555" FontSize="13" VerticalAlignment="Center"/>
+                        <TextBlock Grid.Column="0" Text="WS порт" Foreground="#555" FontSize="13" VerticalAlignment="Center"/>
                         <TextBox Grid.Column="1" x:Name="PortTextBox" Width="80" HorizontalAlignment="Left"/>
                     </Grid>
-                    <CheckBox x:Name="ShowPopupCheckBox" Content="Show transcription popup" Margin="0,0,0,4"/>
-                    <CheckBox x:Name="ShowAckPopupCheckBox" Content="Show WS response popups" Margin="20,0,0,8"/>
+                    <CheckBox x:Name="ShowPopupCheckBox" Content="Показывать уведомления" Margin="0,0,0,8"/>
                     <Grid ColumnDefinitions="120,*" RowDefinitions="Auto,Auto" Margin="0,0,0,10">
-                        <TextBlock Grid.Row="0" Grid.Column="0" Text="Popup duration" Foreground="#555" FontSize="13" VerticalAlignment="Center"/>
+                        <TextBlock Grid.Row="0" Grid.Column="0" Text="Длительность" Foreground="#555" FontSize="13" VerticalAlignment="Center"/>
                         <StackPanel Grid.Row="0" Grid.Column="1" Orientation="Horizontal" Margin="0,0,0,8">
                             <TextBox x:Name="PopupDurationTextBox" Width="60" HorizontalAlignment="Left"/>
-                            <TextBlock Text="sec (0.5–30)" Foreground="#999" FontSize="13" VerticalAlignment="Center" Margin="6,0,0,0"/>
+                            <TextBlock Text="сек (0.5–30)" Foreground="#999" FontSize="13" VerticalAlignment="Center" Margin="6,0,0,0"/>
                         </StackPanel>
 
-                        <TextBlock Grid.Row="1" Grid.Column="0" Text="Popup max chars" Foreground="#555" FontSize="13" VerticalAlignment="Center"/>
+                        <TextBlock Grid.Row="1" Grid.Column="0" Text="Макс. символов" Foreground="#555" FontSize="13" VerticalAlignment="Center"/>
                         <StackPanel Grid.Row="1" Grid.Column="1" Orientation="Horizontal">
                             <TextBox x:Name="PopupMaxLengthTextBox" Width="60" HorizontalAlignment="Left"/>
-                            <TextBlock Text="0 = no limit" Foreground="#999" FontSize="12" VerticalAlignment="Center" Margin="6,0,0,0"/>
+                            <TextBlock Text="0 = без лимита" Foreground="#999" FontSize="12" VerticalAlignment="Center" Margin="6,0,0,0"/>
                         </StackPanel>
                     </Grid>
-                    <CheckBox x:Name="AutostartCheckBox" Content="Start with system"/>
+                    <CheckBox x:Name="AutostartCheckBox" Content="Запускать с системой"/>
                 </StackPanel>
             </Border>
         </StackPanel>
 
         <!-- Buttons -->
-        <StackPanel Grid.Row="4" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,20,0,0">
-            <Button Content="Cancel" Width="90" Margin="0,0,10,0" Click="Cancel_Click"/>
-            <Button Content="Save" Width="90" Click="Save_Click" Classes="accent"/>
+        <StackPanel Grid.Row="5" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,20,0,0">
+            <Button Content="Отмена" Width="90" Margin="0,0,10,0" Click="Cancel_Click"/>
+            <Button Content="Сохранить" Width="90" Click="Save_Click" Classes="accent"/>
         </StackPanel>
     </Grid>
+    </ScrollViewer>
 </Window>

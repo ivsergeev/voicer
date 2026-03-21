@@ -4,6 +4,7 @@ using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Threading;
 using Microsoft.Extensions.DependencyInjection;
 using Voicer.Core.Interfaces;
+using Voicer.Core.Services;
 using Voicer.Desktop.Views;
 
 namespace Voicer.Desktop;
@@ -11,6 +12,7 @@ namespace Voicer.Desktop;
 public partial class App : Application
 {
     private AppOrchestrator _orchestrator = null!;
+    private VoicerWebSocketServer _wsServer = null!;
     private TrayIcon? _trayIcon;
     private NativeMenuItem? _statusItem;
     private NativeMenuItem? _clientsItem;
@@ -32,6 +34,7 @@ public partial class App : Application
             try
             {
                 _iconGenerator = Program.Services.GetRequiredService<ITrayIconGenerator>();
+                _wsServer = Program.Services.GetRequiredService<VoicerWebSocketServer>();
                 _orchestrator = Program.Services.GetRequiredService<AppOrchestrator>();
 
                 // Subscribe to orchestrator events
@@ -40,7 +43,6 @@ public partial class App : Application
                 _orchestrator.TranscriptionReady += OnTranscriptionReady;
                 _orchestrator.ErrorOccurred += OnErrorOccurred;
                 _orchestrator.ActiveClientChanged += OnActiveClientChanged;
-                _orchestrator.ClientAckReceived += OnClientAckReceived;
                 InitializeTrayIcon();
                 _orchestrator.Initialize();
             }
@@ -59,19 +61,19 @@ public partial class App : Application
         {
             var menu = new NativeMenu();
 
-            _statusItem = new NativeMenuItem("Status: Idle") { IsEnabled = false };
+            _statusItem = new NativeMenuItem("Статус: Ожидание") { IsEnabled = false };
             menu.Items.Add(_statusItem);
             menu.Items.Add(new NativeMenuItemSeparator());
 
-            _clientsItem = new NativeMenuItem("Clients: 0") { IsEnabled = false };
+            _clientsItem = new NativeMenuItem("Клиенты: 0") { IsEnabled = false };
             menu.Items.Add(_clientsItem);
             menu.Items.Add(new NativeMenuItemSeparator());
 
-            var settingsItem = new NativeMenuItem("Settings...");
+            var settingsItem = new NativeMenuItem("Настройки...");
             settingsItem.Click += (_, _) => ShowSettings();
             menu.Items.Add(settingsItem);
 
-            var exitItem = new NativeMenuItem("Exit");
+            var exitItem = new NativeMenuItem("Выход");
             exitItem.Click += (_, _) => ExitApplication();
             menu.Items.Add(exitItem);
 
@@ -79,7 +81,7 @@ public partial class App : Application
             _trayIcon = new TrayIcon
             {
                 Icon = CreateWindowIcon("idle"),
-                ToolTipText = "Voicer - Idle",
+                ToolTipText = "Voicer — Ожидание",
                 Menu = menu,
                 IsVisible = true
             };
@@ -115,7 +117,7 @@ public partial class App : Application
             {
                 if (_trayIcon != null)
                 {
-                    _trayIcon.ToolTipText = $"Voicer - {status}";
+                    _trayIcon.ToolTipText = $"Voicer — {status}";
                     var icon = CreateWindowIcon(iconType);
                     if (icon != null)
                     {
@@ -127,7 +129,7 @@ public partial class App : Application
                 }
 
                 if (_statusItem != null)
-                    _statusItem.Header = $"Status: {status}";
+                    _statusItem.Header = $"Статус: {status}";
             }
             catch (Exception ex)
             {
@@ -144,7 +146,7 @@ public partial class App : Application
             {
                 Console.WriteLine($"[WS] Clients connected: {count}");
                 if (_clientsItem != null)
-                    _clientsItem.Header = $"Clients: {count}";
+                    _clientsItem.Header = $"Клиенты: {count}";
             }
             catch (Exception ex)
             {
@@ -153,17 +155,30 @@ public partial class App : Application
         });
     }
 
-    private void OnTranscriptionReady(string text, string mode)
+    private void OnTranscriptionReady(string text, string? context, string? tag, string mode)
     {
         Dispatcher.UIThread.Post(() =>
         {
             try
             {
-                if (_orchestrator.Settings.ShowPopup)
+                if (!_orchestrator.Settings.ShowPopup) return;
+
+                // Check if there are active WS clients (for non-insert modes)
+                bool isWsMode = mode is "ws" or "ws_sel" or "ws_tag";
+                string effectiveMode = mode;
+                string? infoMessage = null;
+                double duration = _orchestrator.Settings.PopupDurationSeconds;
+
+                if (isWsMode && !_wsServer.HasActiveClient)
                 {
-                    var popup = new TranscriptionPopup();
-                    popup.Show(text, mode, _orchestrator.Settings.PopupDurationSeconds, _orchestrator.Settings.PopupMaxLength);
+                    effectiveMode = "no_clients";
+                    infoMessage = "Нет подключённых WS-клиентов";
+                    duration = 6; // longer for "not delivered"
                 }
+
+                var popup = new TranscriptionPopup();
+                popup.Show(text, context, tag, effectiveMode, duration,
+                    _orchestrator.Settings.PopupMaxLength, infoMessage);
             }
             catch (Exception ex)
             {
@@ -184,41 +199,12 @@ public partial class App : Application
                 if (_orchestrator.Settings.ShowPopup)
                 {
                     var popup = new TranscriptionPopup();
-                    popup.Show(msg, hasActive ? "ws" : "no_clients", _orchestrator.Settings.PopupDurationSeconds);
+                    popup.Show(msg, null, null, hasActive ? "client_connected" : "client_disconnected", _orchestrator.Settings.PopupDurationSeconds);
                 }
             }
             catch (Exception ex)
             {
                 Console.WriteLine($"ERROR: OnActiveClientChanged failed: {ex}");
-            }
-        });
-    }
-
-    private void OnClientAckReceived(string status, string? message)
-    {
-        Dispatcher.UIThread.Post(() =>
-        {
-            try
-            {
-                Console.WriteLine($"[WS] Client ack: {status}{(message != null ? $" — {message}" : "")}");
-
-                if (_orchestrator.Settings.ShowAckPopup && status is "submitted" or "done" or "error")
-                {
-                    var (text, mode) = status switch
-                    {
-                        "submitted" => ("Prompt submitted", "ack_ok"),
-                        "done" => ("Response complete", "ack_done"),
-                        "error" => (message ?? "Client error", "ack_error"),
-                        _ => ($"Client: {status}", "ack_ok"),
-                    };
-
-                    var popup = new TranscriptionPopup();
-                    popup.Show(text, mode, _orchestrator.Settings.PopupDurationSeconds);
-                }
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"ERROR: OnClientAckReceived failed: {ex}");
             }
         });
     }

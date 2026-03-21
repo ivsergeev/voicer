@@ -1,0 +1,22 @@
+#!/bin/bash
+set -e
+
+# Create symlink for CLI access
+ln -sf /opt/openvoicer/OpenVoicer /usr/bin/openvoicer
+
+# Create writable settings file
+touch /opt/openvoicer/settings.json
+chmod 666 /opt/openvoicer/settings.json
+
+# Update desktop database
+if command -v update-desktop-database &>/dev/null; then
+    update-desktop-database /usr/share/applications/ 2>/dev/null || true
+fi
+
+# Update icon cache
+if command -v gtk-update-icon-cache &>/dev/null; then
+    gtk-update-icon-cache /usr/share/icons/hicolor/ 2>/dev/null || true
+fi
+
+echo "OpenVoicer installed successfully."
+echo "Run 'openvoicer' or find it in your application menu."

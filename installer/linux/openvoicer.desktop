@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=OpenVoicer
+GenericName=Voice-to-AI Bridge
+Comment=Bridge between Voicer (speech-to-text) and OpenCode (AI agent)
+Exec=/opt/openvoicer/OpenVoicer
+Icon=openvoicer
+Terminal=false
+Categories=Utility;Development;
+Keywords=voice;speech;opencode;ai;agent;
+StartupNotify=false
