@@ -1,4 +1,5 @@
 using Microsoft.Win32;
+using Serilog;
 
 namespace OpenVoicer.Services;
 
@@ -44,7 +45,7 @@ public static class AutoStartService
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[AutoStart] Error: {ex.Message}");
+            Log.Error(ex, "[AutoStart] Error");
         }
     }
 }

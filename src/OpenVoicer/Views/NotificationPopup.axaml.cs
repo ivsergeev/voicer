@@ -14,6 +14,9 @@ public partial class NotificationPopup : Window
     private readonly DispatcherTimer _timer;
     private Action? _onApprove;
     private Action? _onReject;
+    private string? _fullTextContent;
+    private bool _isExpanded;
+    private bool _isExpandable;
 
     public NotificationPopup()
     {
@@ -39,6 +42,9 @@ public partial class NotificationPopup : Window
     {
         _onApprove = onApprove;
         _onReject = onReject;
+        _fullTextContent = description;
+        _isExpanded = false;
+        _isExpandable = false;
 
         var (dotColor, bgColor, autoClose) = GetTypeStyle(type);
 
@@ -58,19 +64,28 @@ public partial class NotificationPopup : Window
             DescriptionText.IsVisible = true;
         }
 
-        // Buttons
-        if (type == "approval" && onApprove != null)
+        // Buttons & behavior per type
+        if (type == "done")
+        {
+            // Agent response: no auto-close, expandable, OK button only
+            autoClose = false;
+            _isExpandable = !string.IsNullOrEmpty(description);
+            ExpandHint.IsVisible = _isExpandable;
+            ButtonPanel.IsVisible = true;
+            RejectButton.IsVisible = false;
+            ApproveButton.IsVisible = false;
+            CloseButton.IsVisible = false;
+            OkButton.IsVisible = true;
+        }
+        else if (type == "approval" && onApprove != null)
         {
             ButtonPanel.IsVisible = true;
             RejectButton.IsVisible = true;
             ApproveButton.IsVisible = true;
-            CloseButton.IsVisible = false;
         }
         else if (type == "error")
         {
             ButtonPanel.IsVisible = true;
-            RejectButton.IsVisible = false;
-            ApproveButton.IsVisible = false;
             CloseButton.IsVisible = true;
         }
 
@@ -84,6 +99,32 @@ public partial class NotificationPopup : Window
             _timer.Interval = TimeSpan.FromSeconds(duration);
             _timer.Start();
         }
+    }
+
+    private void ToggleExpand()
+    {
+        if (!_isExpandable || string.IsNullOrEmpty(_fullTextContent)) return;
+
+        _isExpanded = !_isExpanded;
+
+        if (_isExpanded)
+        {
+            // Show full text, hide preview
+            DescriptionText.IsVisible = false;
+            FullText.Text = _fullTextContent;
+            FullTextScroll.IsVisible = true;
+            ExpandHint.Text = "▲";
+        }
+        else
+        {
+            // Show preview, hide full text
+            FullTextScroll.IsVisible = false;
+            DescriptionText.IsVisible = true;
+            ExpandHint.Text = "▼";
+        }
+
+        // Reposition after size change
+        Dispatcher.UIThread.Post(RepositionAll, DispatcherPriority.Loaded);
     }
 
     private static (Color dotColor, Color bgColor, bool autoClose) GetTypeStyle(string type)
@@ -108,7 +149,7 @@ public partial class NotificationPopup : Window
             "done" => (
                 Color.FromRgb(0x66, 0xBB, 0x6A), // green dot
                 Color.FromArgb(0xE8, 0x2E, 0x7D, 0x32), // green bg
-                true
+                false // overridden: no auto-close for agent responses
             ),
             "error" => (
                 Color.FromRgb(0xEF, 0x53, 0x50), // red dot
@@ -168,10 +209,26 @@ public partial class NotificationPopup : Window
         Close();
     }
 
+    private void Ok_Click(object? sender, RoutedEventArgs e)
+    {
+        _timer.Stop();
+        Close();
+    }
+
     private void Window_PointerPressed(object? sender, PointerPressedEventArgs e)
     {
-        // Only auto-close popups dismiss on click outside buttons
-        if (_timer.IsEnabled || (!ButtonPanel.IsVisible))
+        // For expandable popups: click toggles expand/collapse
+        if (_isExpandable)
+        {
+            // Don't toggle if clicking on buttons
+            if (e.Source is Button) return;
+            ToggleExpand();
+            e.Handled = true;
+            return;
+        }
+
+        // For auto-close popups: click dismisses
+        if (_timer.IsEnabled || !ButtonPanel.IsVisible)
         {
             _timer.Stop();
             Close();

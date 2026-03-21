@@ -3,6 +3,7 @@ using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Threading;
 using Microsoft.Extensions.DependencyInjection;
+using Serilog;
 using Voicer.Core.Interfaces;
 using Voicer.Core.Services;
 using Voicer.Desktop.Views;
@@ -48,7 +49,9 @@ public partial class App : Application
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"FATAL: OnFrameworkInitializationCompleted failed: {ex}");
+                Log.Fatal(ex, "OnFrameworkInitializationCompleted failed");
+                // Without tray icon the app is invisible — force exit
+                Environment.Exit(1);
             }
         }
 
@@ -77,7 +80,7 @@ public partial class App : Application
             exitItem.Click += (_, _) => ExitApplication();
             menu.Items.Add(exitItem);
 
-            Console.WriteLine("Creating tray icon...");
+            Log.Debug("Creating tray icon");
             _trayIcon = new TrayIcon
             {
                 Icon = CreateWindowIcon("idle"),
@@ -85,13 +88,13 @@ public partial class App : Application
                 Menu = menu,
                 IsVisible = true
             };
-            Console.WriteLine("Tray icon created successfully.");
+            Log.Debug("Tray icon created successfully");
 
             _trayIcon.Clicked += (_, _) => ShowSettings();
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"FATAL: InitializeTrayIcon failed: {ex}");
+            Log.Fatal(ex, "InitializeTrayIcon failed");
         }
     }
 
@@ -104,7 +107,7 @@ public partial class App : Application
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"ERROR: CreateWindowIcon('{iconType}') failed: {ex}");
+            Log.Error(ex, "CreateWindowIcon failed for {IconType}", iconType);
             return null;
         }
     }
@@ -133,7 +136,7 @@ public partial class App : Application
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"ERROR: OnStateChanged('{status}', '{iconType}') failed: {ex}");
+                Log.Error(ex, "OnStateChanged failed for {Status}, {IconType}", status, iconType);
             }
         });
     }
@@ -144,13 +147,13 @@ public partial class App : Application
         {
             try
             {
-                Console.WriteLine($"[WS] Clients connected: {count}");
+                Log.Information("WS clients connected: {Count}", count);
                 if (_clientsItem != null)
                     _clientsItem.Header = $"Клиенты: {count}";
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"ERROR: OnClientCountChanged({count}) failed: {ex}");
+                Log.Error(ex, "OnClientCountChanged failed for {Count}", count);
             }
         });
     }
@@ -182,7 +185,7 @@ public partial class App : Application
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"ERROR: OnTranscriptionReady failed: {ex}");
+                Log.Error(ex, "OnTranscriptionReady failed");
             }
         });
     }
@@ -193,8 +196,8 @@ public partial class App : Application
         {
             try
             {
-                var msg = hasActive ? "Voice target: active client connected" : "Voice target: no active client";
-                Console.WriteLine($"[WS] {msg}");
+                var msg = hasActive ? "Клиент подключён" : "Клиент отключён";
+                Log.Information("WS {Message}", msg);
 
                 if (_orchestrator.Settings.ShowPopup)
                 {
@@ -204,7 +207,7 @@ public partial class App : Application
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"ERROR: OnActiveClientChanged failed: {ex}");
+                Log.Error(ex, "OnActiveClientChanged failed");
             }
         });
     }
@@ -213,7 +216,7 @@ public partial class App : Application
     {
         Dispatcher.UIThread.Post(() =>
         {
-            Console.WriteLine($"ERROR: {message}");
+            Log.Error("App error: {Message}", message);
         });
     }
 
@@ -246,7 +249,7 @@ public partial class App : Application
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"ERROR: ShowSettings failed: {ex}");
+            Log.Error(ex, "ShowSettings failed");
             _settingsOpen = false;
         }
     }
@@ -255,7 +258,7 @@ public partial class App : Application
     {
         try
         {
-            Console.WriteLine("Shutting down...");
+            Log.Information("Shutting down");
             _orchestrator.Shutdown();
             _trayIcon?.Dispose();
             _trayIcon = null;
@@ -265,7 +268,7 @@ public partial class App : Application
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"ERROR: ExitApplication failed: {ex}");
+            Log.Error(ex, "ExitApplication failed");
         }
     }
 }

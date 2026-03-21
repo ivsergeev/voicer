@@ -1,4 +1,5 @@
 using System.IO;
+using Serilog;
 using Voicer.Core.Interfaces;
 using Voicer.Core.Models;
 using Voicer.Core.Services;
@@ -88,27 +89,27 @@ public class AppOrchestrator : IDisposable
         try
         {
             _wsServer.Start(_settings.WebSocketPort);
-            Console.WriteLine($"WebSocket server started on ws://0.0.0.0:{_settings.WebSocketPort}");
+            Log.Information("WebSocket server started on ws://0.0.0.0:{Port}", _settings.WebSocketPort);
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"ERROR: Failed to start WebSocket server: {ex.Message}");
+            Log.Error(ex, "Failed to start WebSocket server");
             ErrorOccurred?.Invoke($"Failed to start WebSocket server on port {_settings.WebSocketPort}:\n{ex.Message}");
         }
 
         // Audio capture
         var mics = _audioCaptureService.GetMicrophoneDevices();
-        Console.WriteLine($"Microphones found: {mics.Count}");
+        Log.Information("Microphones found: {Count}", mics.Count);
         foreach (var (id, name) in mics)
         {
             bool selected = id == _settings.MicrophoneDeviceId;
-            Console.WriteLine($"  {name}{(selected ? " (selected)" : "")}");
+            Log.Debug("Microphone: {Name}{Selected}", name, selected ? " (selected)" : "");
         }
 
         if (mics.Count == 0)
-            Console.WriteLine("WARNING: No microphone devices found!");
+            Log.Warning("No microphone devices found");
         else if (string.IsNullOrEmpty(_settings.MicrophoneDeviceId))
-            Console.WriteLine("  Using default capture device.");
+            Log.Information("Using default capture device");
 
         _audioCaptureService.DeviceId = _settings.MicrophoneDeviceId;
         _audioCaptureService.NormalizeAudio = _settings.NormalizeAudio;
@@ -130,7 +131,7 @@ public class AppOrchestrator : IDisposable
 
             if (!_hotkeyService.IsAvailable)
             {
-                Console.WriteLine("ERROR: Hotkey service is not available.");
+                Log.Error("Hotkey service is not available");
                 ErrorOccurred?.Invoke(
                     "Global hotkeys are not available.\n" +
                     "This usually happens on Linux with Wayland (X11 is required).\n" +
@@ -138,20 +139,20 @@ public class AppOrchestrator : IDisposable
             }
             else
             {
-                Console.WriteLine($"Push-to-talk hotkey (Insert): {_platformInfo.GetHotkeyDisplayName(_settings.InsertHotkeyModifiers, _settings.InsertHotkeyKey)}");
+                Log.Debug("Push-to-talk hotkey (Insert): {Hotkey}", _platformInfo.GetHotkeyDisplayName(_settings.InsertHotkeyModifiers, _settings.InsertHotkeyKey));
                 foreach (var action in _settings.WsHotkeyActions)
                 {
-                    Console.WriteLine($"  WS hotkey: {_platformInfo.GetHotkeyDisplayName(action.Modifiers, action.KeyCode)} → {action.Action}{(action.Tag != null ? $" [{action.Tag}]" : "")}");
+                    Log.Debug("WS hotkey: {Hotkey} -> {Action}{Tag}", _platformInfo.GetHotkeyDisplayName(action.Modifiers, action.KeyCode), action.Action, action.Tag != null ? $" [{action.Tag}]" : "");
                 }
             }
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"ERROR: Failed to register hotkey: {ex.Message}");
+            Log.Error(ex, "Failed to register hotkey");
             ErrorOccurred?.Invoke($"Failed to register hotkey:\n{ex.Message}");
         }
 
-        Console.WriteLine("Ready. Press hotkey to start recording.");
+        Log.Information("Ready. Press hotkey to start recording");
     }
 
     private string IdleIconType => _wsClientCount > 0
@@ -169,14 +170,11 @@ public class AppOrchestrator : IDisposable
         if (!File.Exists(modelPath) || !File.Exists(tokensPath))
         {
             StateChanged?.Invoke("No model", "no_model");
-            Console.WriteLine("WARNING: Model files not found.");
-            Console.WriteLine($"  Expected: {modelPath}");
-            Console.WriteLine($"  Expected: {tokensPath}");
-            Console.WriteLine("  Run: powershell ./scripts/download-model.ps1");
+            Log.Warning("Model files not found. Expected: {ModelPath}, {TokensPath}. Run: powershell ./scripts/download-model.ps1", modelPath, tokensPath);
             return;
         }
 
-        Console.WriteLine("Loading speech model...");
+        Log.Information("Loading speech model");
 
         Task.Run(() =>
         {
@@ -184,13 +182,13 @@ public class AppOrchestrator : IDisposable
             {
                 StateChanged?.Invoke("Loading model...", "processing_ws");
                 _speechService.Initialize(modelPath, tokensPath, _settings.ModelThreads);
-                Console.WriteLine("Speech model loaded (e2e with punctuation).");
+                Log.Information("Speech model loaded (e2e with punctuation)");
 
                 StateChanged?.Invoke(IdleStatus, IdleIconType);
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"ERROR: Failed to load speech model: {ex.Message}");
+                Log.Error(ex, "Failed to load speech model");
                 StateChanged?.Invoke("Model error", "no_model");
                 ErrorOccurred?.Invoke($"Failed to load speech model:\n{ex.Message}");
             }
@@ -226,17 +224,17 @@ public class AppOrchestrator : IDisposable
             if (!string.IsNullOrEmpty(captured))
             {
                 _selectedText = captured;
-                Console.WriteLine($"  [SELECTION] Captured in {sw.ElapsedMilliseconds}ms: {_selectedText.Substring(0, Math.Min(_selectedText.Length, 80))}...");
+                Log.Debug("Selection captured in {ElapsedMs}ms: {Preview}", sw.ElapsedMilliseconds, _selectedText.Substring(0, Math.Min(_selectedText.Length, 80)));
             }
             else if (!string.IsNullOrEmpty(savedClipboard))
             {
                 _selectedText = savedClipboard;
-                Console.WriteLine($"  [SELECTION] No selection, using clipboard: {_selectedText.Substring(0, Math.Min(_selectedText.Length, 80))}...");
+                Log.Debug("No selection, using clipboard: {Preview}", _selectedText.Substring(0, Math.Min(_selectedText.Length, 80)));
             }
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"  [SELECTION] Failed to capture: {ex.Message}");
+            Log.Warning(ex, "Failed to capture selection");
             _selectedText = null;
         }
         finally
@@ -266,7 +264,7 @@ public class AppOrchestrator : IDisposable
         catch (Exception ex)
         {
             _state = AppState.Idle;
-            Console.WriteLine($"ERROR: Failed to start recording: {ex.Message}");
+            Log.Error(ex, "Failed to start recording");
             ErrorOccurred?.Invoke($"Failed to start recording:\n{ex.Message}");
             return;
         }
@@ -292,7 +290,7 @@ public class AppOrchestrator : IDisposable
             status = isSelectionMode ? "Recording (ws+sel, no claim)" : "Recording (ws, no claim)";
         }
         StateChanged?.Invoke(status, iconType);
-        Console.WriteLine($"[REC] Recording started ({(insertMode ? "insert" : isSelectionMode ? "ws+sel" : "ws")})...");
+        Log.Debug("Recording started ({Mode})", insertMode ? "insert" : isSelectionMode ? "ws+sel" : "ws");
     }
 
     private void StopRecordingAndProcess()
@@ -314,7 +312,7 @@ public class AppOrchestrator : IDisposable
             procIconType = isSelectionMode ? "processing_ws_sel_noclaim" : "processing_ws_noclaim";
         StateChanged?.Invoke("Processing", procIconType);
         if (!insertMode) _wsServer.BroadcastStatus("processing");
-        Console.WriteLine("[REC] Recording stopped. Processing...");
+        Log.Debug("Recording stopped, processing");
 
         var samples = _audioCaptureService.GetRecordedSamples();
         var durationSec = samples.Length / 16000.0;
@@ -326,7 +324,7 @@ public class AppOrchestrator : IDisposable
             sumSq += samples[i] * samples[i];
         }
         float rms = samples.Length > 0 ? (float)Math.Sqrt(sumSq / samples.Length) : 0;
-        Console.WriteLine($"  Audio: {durationSec:F1}s, {samples.Length} samples, rms={rms:F4}, peak={maxAbs:F4}");
+        Log.Debug("Audio: {Duration:F1}s, {SampleCount} samples, rms={Rms:F4}, peak={Peak:F4}", durationSec, samples.Length, rms, maxAbs);
 
         Task.Run(async () =>
         {
@@ -336,7 +334,7 @@ public class AppOrchestrator : IDisposable
 
                 if (!string.IsNullOrWhiteSpace(text))
                 {
-                    Console.WriteLine($"  >>> {text}");
+                    Log.Information("Transcription: {Text}", text);
 
                     if (insertMode)
                     {
@@ -356,7 +354,7 @@ public class AppOrchestrator : IDisposable
                 }
                 else
                 {
-                    Console.WriteLine("  (empty result)");
+                    Log.Debug("Transcription result is empty");
                 }
 
                 _state = AppState.Idle;
@@ -365,7 +363,7 @@ public class AppOrchestrator : IDisposable
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"  ERROR: {ex.Message}");
+                Log.Error(ex, "Recognition failed");
                 if (!insertMode) _wsServer.BroadcastError(ex.Message);
                 _state = AppState.Idle;
                 if (!insertMode) _wsServer.BroadcastStatus("idle");
@@ -379,7 +377,7 @@ public class AppOrchestrator : IDisposable
         // Save current clipboard
         string? savedClipboard = null;
         try { savedClipboard = await _textInsertionService.GetClipboardText(); }
-        catch (Exception ex) { Console.WriteLine($"[Paste] Warning: failed to save clipboard: {ex.Message}"); }
+        catch (Exception ex) { Log.Warning(ex, "Failed to save clipboard before paste"); }
 
         // Set recognized text to clipboard
         await _textInsertionService.SetClipboardText(text);
@@ -402,7 +400,7 @@ public class AppOrchestrator : IDisposable
                 }
                 catch (Exception ex)
                 {
-                    Console.WriteLine($"[Paste] Warning: clipboard restore attempt {attempt}/3 failed: {ex.Message}");
+                    Log.Warning(ex, "Clipboard restore attempt {Attempt}/3 failed", attempt);
                     if (attempt < 3) await Task.Delay(100);
                 }
             }
@@ -436,7 +434,7 @@ public class AppOrchestrator : IDisposable
         {
             // SendTag: no recording, immediately send tag
             var tag = action.Tag ?? "";
-            Console.WriteLine($"[WS] SendTag: [{tag}]");
+            Log.Debug("WS SendTag: [{Tag}]", tag);
             _wsServer.BroadcastTranscription("", tag: tag);
             TranscriptionReady?.Invoke("", null, tag, "ws_tag");
             return;

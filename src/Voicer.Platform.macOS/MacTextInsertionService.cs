@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Runtime.InteropServices;
+using Serilog;
 using Voicer.Core.Interfaces;
 
 namespace Voicer.Platform.macOS;
@@ -73,7 +74,7 @@ public class MacTextInsertionService : ITextInsertionService
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[macOS] Clipboard set failed: {ex.Message}");
+                Log.Error(ex, "macOS clipboard set failed");
             }
         });
     }
@@ -98,7 +99,7 @@ public class MacTextInsertionService : ITextInsertionService
             CGEventPost(kCGHIDEventTap, keyUp);
             CFRelease(keyUp);
 
-            Console.WriteLine("  [COPY] macOS Cmd+C simulated via CGEventPost");
+            Log.Debug("macOS Cmd+C simulated via CGEventPost");
         });
     }
 
@@ -122,7 +123,7 @@ public class MacTextInsertionService : ITextInsertionService
             CGEventPost(kCGHIDEventTap, keyUp);
             CFRelease(keyUp);
 
-            Console.WriteLine("  [INSERT] macOS Cmd+V simulated via CGEventPost");
+            Log.Debug("macOS Cmd+V simulated via CGEventPost");
         });
     }
 }

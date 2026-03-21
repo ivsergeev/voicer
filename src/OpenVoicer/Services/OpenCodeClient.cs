@@ -2,6 +2,7 @@ using System.Net.Http;
 using System.Text;
 using System.Text.Json;
 using OpenVoicer.Models;
+using Serilog;
 
 namespace OpenVoicer.Services;
 
@@ -22,8 +23,9 @@ public class OpenCodeClient : IDisposable
         _http = new HttpClient
         {
             BaseAddress = new Uri($"http://localhost:{_settings.OpenCodePort}"),
-            Timeout = TimeSpan.FromSeconds(10),
+            Timeout = TimeSpan.FromSeconds(30),
         };
+        Log.Debug("[OC API] HttpClient created, base: {BaseAddress}", _http.BaseAddress);
     }
 
     /// <summary>
@@ -57,7 +59,7 @@ public class OpenCodeClient : IDisposable
             var resp = await _http.PostAsync("/session", content);
             if (!resp.IsSuccessStatusCode)
             {
-                Console.WriteLine($"[OC API] POST /session failed: {resp.StatusCode}");
+                Log.Error("[OC API] POST /session failed: {StatusCode}", resp.StatusCode);
                 return null;
             }
 
@@ -66,16 +68,16 @@ public class OpenCodeClient : IDisposable
             if (doc.RootElement.TryGetProperty("id", out var idProp))
             {
                 _activeSessionId = idProp.GetString();
-                Console.WriteLine($"[OC API] Created session: {_activeSessionId}");
+                Log.Information("[OC API] Created session: {SessionId}", _activeSessionId);
                 return _activeSessionId;
             }
 
-            Console.WriteLine("[OC API] Created session but no id in response");
+            Log.Warning("[OC API] Created session but no id in response");
             return null;
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[OC API] CreateSession error: {ex.Message}");
+            Log.Error(ex, "[OC API] CreateSession error");
             return null;
         }
     }
@@ -88,7 +90,7 @@ public class OpenCodeClient : IDisposable
         var sessionId = await ResolveSessionAsync();
         if (sessionId == null)
         {
-            Console.WriteLine("[OC API] No session available, cannot send prompt");
+            Log.Warning("[OC API] No session available, cannot send prompt");
             return false;
         }
 
@@ -110,12 +112,12 @@ public class OpenCodeClient : IDisposable
 
             if (resp.IsSuccessStatusCode)
             {
-                Console.WriteLine($"[OC API] Prompt sent to session {sessionId}");
+                Log.Information("[OC API] Prompt sent to session {SessionId}", sessionId);
                 return true;
             }
 
             var error = await resp.Content.ReadAsStringAsync();
-            Console.WriteLine($"[OC API] Prompt failed ({resp.StatusCode}): {error}");
+            Log.Error("[OC API] Prompt failed ({StatusCode}): {Error}", resp.StatusCode, error);
             // Session may have been deleted — reset so next call re-resolves
             if (resp.StatusCode == System.Net.HttpStatusCode.NotFound)
                 _activeSessionId = null;
@@ -123,7 +125,7 @@ public class OpenCodeClient : IDisposable
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[OC API] SendPrompt error: {ex.Message}");
+            Log.Error(ex, "[OC API] SendPrompt error");
             return false;
         }
     }
@@ -162,7 +164,7 @@ public class OpenCodeClient : IDisposable
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[OC API] GetAvailableModels error: {ex.Message}");
+            Log.Error(ex, "[OC API] GetAvailableModels error");
         }
         return result;
     }
@@ -175,7 +177,9 @@ public class OpenCodeClient : IDisposable
         var result = new List<(string, string, List<string>)>();
         try
         {
+            Log.Debug("[OC API] GET /provider ...");
             var resp = await _http.GetAsync("/provider");
+            Log.Debug("[OC API] GET /provider → {StatusCode}", resp.StatusCode);
             if (!resp.IsSuccessStatusCode) return result;
 
             var json = await resp.Content.ReadAsStringAsync();
@@ -201,7 +205,7 @@ public class OpenCodeClient : IDisposable
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[OC API] GetProviders error: {ex.Message}");
+            Log.Error(ex, "[OC API] GetProviders error");
         }
         return result;
     }
@@ -230,7 +234,7 @@ public class OpenCodeClient : IDisposable
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[OC API] GetCurrentModel error: {ex.Message}");
+            Log.Error(ex, "[OC API] GetCurrentModel error");
         }
         return (null, null);
     }
@@ -260,18 +264,18 @@ public class OpenCodeClient : IDisposable
 
             if (resp.IsSuccessStatusCode)
             {
-                Console.WriteLine($"[OC API] Model set to {providerID}/{modelID}");
+                Log.Information("[OC API] Model set to {ProviderID}/{ModelID}", providerID, modelID);
                 // Reset session so next prompt uses new model
                 _activeSessionId = null;
                 return true;
             }
 
-            Console.WriteLine($"[OC API] SetModel failed: {resp.StatusCode}");
+            Log.Error("[OC API] SetModel failed: {StatusCode}", resp.StatusCode);
             return false;
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[OC API] SetModel error: {ex.Message}");
+            Log.Error(ex, "[OC API] SetModel error");
             return false;
         }
     }
@@ -285,7 +289,9 @@ public class OpenCodeClient : IDisposable
         var result = new List<(string, string, string)>();
         try
         {
+            Log.Debug("[OC API] GET /agent ...");
             var resp = await _http.GetAsync("/agent");
+            Log.Debug("[OC API] GET /agent → {StatusCode}", resp.StatusCode);
             if (!resp.IsSuccessStatusCode) return result;
 
             var json = await resp.Content.ReadAsStringAsync();
@@ -310,7 +316,7 @@ public class OpenCodeClient : IDisposable
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[OC API] GetAgents error: {ex.Message}");
+            Log.Error(ex, "[OC API] GetAgents error");
         }
         return result;
     }

@@ -51,17 +51,25 @@ public class AppSettings
 
     public static AppSettings Load()
     {
-        if (!File.Exists(SettingsPath))
+        try
+        {
+            if (!File.Exists(SettingsPath))
+                return new AppSettings();
+
+            var json = File.ReadAllText(SettingsPath);
+            var settings = JsonSerializer.Deserialize<AppSettings>(json) ?? new AppSettings();
+
+            // Migration from v1: if old fields are present and WsHotkeyActions is at default,
+            // check if the JSON contains old-style hotkey fields
+            MigrateFromV1(json, settings);
+
+            return settings;
+        }
+        catch
+        {
+            // Corrupted or locked settings file — return defaults
             return new AppSettings();
-
-        var json = File.ReadAllText(SettingsPath);
-        var settings = JsonSerializer.Deserialize<AppSettings>(json) ?? new AppSettings();
-
-        // Migration from v1: if old fields are present and WsHotkeyActions is at default,
-        // check if the JSON contains old-style hotkey fields
-        MigrateFromV1(json, settings);
-
-        return settings;
+        }
     }
 
     private static void MigrateFromV1(string json, AppSettings settings)
@@ -118,8 +126,15 @@ public class AppSettings
 
     public void Save()
     {
-        var json = JsonSerializer.Serialize(this, new JsonSerializerOptions { WriteIndented = true });
-        File.WriteAllText(SettingsPath, json);
+        try
+        {
+            var json = JsonSerializer.Serialize(this, new JsonSerializerOptions { WriteIndented = true });
+            File.WriteAllText(SettingsPath, json);
+        }
+        catch (Exception ex)
+        {
+            Serilog.Log.Error(ex, "Failed to save settings to {Path}", SettingsPath);
+        }
     }
 
     public string GetModelPath()

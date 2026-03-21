@@ -1,4 +1,5 @@
 using System.Runtime.InteropServices;
+using Serilog;
 using Voicer.Core.Interfaces;
 using Voicer.Core.Models;
 
@@ -108,15 +109,14 @@ public class LinuxHotkeyService : IHotkeyService
         var sessionType = Environment.GetEnvironmentVariable("XDG_SESSION_TYPE");
         if (sessionType == "wayland")
         {
-            Console.WriteLine("[Linux] WARNING: Running under Wayland. X11 hotkeys may not work.");
-            Console.WriteLine("  Consider: GDK_BACKEND=x11 or QT_QPA_PLATFORM=xcb");
+            Log.Warning("Running under Wayland. X11 hotkeys may not work. Consider: GDK_BACKEND=x11 or QT_QPA_PLATFORM=xcb");
         }
 
         _display = XOpenDisplay(null);
         if (_display == IntPtr.Zero)
         {
             IsAvailable = false;
-            Console.WriteLine("[Linux] ERROR: Cannot open X11 display. Hotkeys disabled.");
+            Log.Error("Cannot open X11 display. Hotkeys disabled");
             return;
         }
 
@@ -144,14 +144,14 @@ public class LinuxHotkeyService : IHotkeyService
         keycode = 0;
         if (!LinuxPlatformInfo.VkToX11KeySym.TryGetValue(vkCode, out uint keysym))
         {
-            Console.WriteLine($"[Linux] No X11 keysym mapping for VK 0x{vkCode:X2}");
+            Log.Warning("No X11 keysym mapping for VK 0x{VkCode:X2}", vkCode);
             return;
         }
 
         keycode = XKeysymToKeycode(_display, keysym);
         if (keycode == 0)
         {
-            Console.WriteLine($"[Linux] XKeysymToKeycode failed for keysym 0x{keysym:X}");
+            Log.Warning("XKeysymToKeycode failed for keysym 0x{KeySym:X}", keysym);
             return;
         }
 

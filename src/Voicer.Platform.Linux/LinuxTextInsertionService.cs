@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using Serilog;
 using Voicer.Core.Interfaces;
 
 namespace Voicer.Platform.Linux;
@@ -60,7 +61,7 @@ public class LinuxTextInsertionService : ITextInsertionService
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[Linux] Clipboard set failed: {ex.Message}");
+                Log.Error(ex, "Linux clipboard set failed");
             }
         });
     }
@@ -91,7 +92,7 @@ public class LinuxTextInsertionService : ITextInsertionService
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[Linux] SimulateCopy failed: {ex.Message}");
+                Log.Error(ex, "Linux SimulateCopy failed");
             }
         });
     }
@@ -121,8 +122,7 @@ public class LinuxTextInsertionService : ITextInsertionService
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[Linux] Text insertion failed: {ex.Message}");
-                Console.WriteLine("  Ensure xdotool (X11) or wtype (Wayland) is installed.");
+                Log.Error(ex, "Linux text insertion failed. Ensure xdotool (X11) or wtype (Wayland) is installed");
             }
         });
     }

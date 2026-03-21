@@ -4,6 +4,7 @@ using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Layout;
 using Avalonia.Media;
+using Serilog;
 using Voicer.Core.Interfaces;
 using Voicer.Core.Models;
 
@@ -78,7 +79,8 @@ public partial class SettingsWindow : Window
         PopupDurationTextBox.Text = _settings.PopupDurationSeconds.ToString("0.#");
         PopupMaxLengthTextBox.Text = _settings.PopupMaxLength.ToString();
         NormalizeAudioCheckBox.IsChecked = _settings.NormalizeAudio;
-        AutostartCheckBox.IsChecked = _autoStartService.IsEnabled();
+        try { AutostartCheckBox.IsChecked = _autoStartService.IsEnabled(); }
+        catch (Exception ex) { Log.Warning(ex, "Failed to read autostart state"); }
 
         // Build WS hotkey action cards
         foreach (var action in _settings.WsHotkeyActions)
@@ -89,7 +91,16 @@ public partial class SettingsWindow : Window
 
     private void LoadMicrophones()
     {
-        _devices = _audioCaptureService.GetMicrophoneDevices();
+        try
+        {
+            _devices = _audioCaptureService.GetMicrophoneDevices();
+        }
+        catch (Exception ex)
+        {
+            Log.Warning(ex, "Failed to enumerate microphone devices");
+            _devices = new List<(string id, string name)>();
+        }
+
         var names = _devices.Select(d => d.name).ToList();
         MicrophoneCombo.ItemsSource = names;
 
@@ -364,13 +375,13 @@ public partial class SettingsWindow : Window
     {
         if (!int.TryParse(PortTextBox.Text, out int port) || port < 1 || port > 65535)
         {
-            Console.WriteLine("Валидация: порт должен быть от 1 до 65535.");
+            Log.Warning("Validation: port must be between 1 and 65535");
             return;
         }
 
         if (!int.TryParse(ThreadsTextBox.Text, out int threads) || threads < 1 || threads > 32)
         {
-            Console.WriteLine("Валидация: потоки должны быть от 1 до 32.");
+            Log.Warning("Validation: threads must be between 1 and 32");
             return;
         }
 
@@ -378,13 +389,13 @@ public partial class SettingsWindow : Window
                 System.Globalization.CultureInfo.InvariantCulture, out double popupDuration)
             || popupDuration < 0.5 || popupDuration > 30)
         {
-            Console.WriteLine("Валидация: длительность уведомления от 0.5 до 30 сек.");
+            Log.Warning("Validation: popup duration must be between 0.5 and 30 seconds");
             return;
         }
 
         if (!int.TryParse(PopupMaxLengthTextBox.Text, out int popupMaxLength) || popupMaxLength < 0)
         {
-            Console.WriteLine("Валидация: макс. символов должно быть 0 или больше.");
+            Log.Warning("Validation: max characters must be 0 or greater");
             return;
         }
 

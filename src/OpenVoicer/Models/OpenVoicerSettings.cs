@@ -10,6 +10,7 @@ public class OpenVoicerSettings
     public bool AutoStartOpenCode { get; set; } = true;
     public bool UseWsl { get; set; } = false;
     public string WslDistro { get; set; } = "";
+    public string WslWorkDir { get; set; } = "~";
     public string? ProviderID { get; set; }
     public string? ModelID { get; set; }
     public string AgentID { get; set; } = "build";
@@ -23,11 +24,19 @@ public class OpenVoicerSettings
 
     public static OpenVoicerSettings Load()
     {
-        if (!File.Exists(SettingsPath))
-            return new OpenVoicerSettings();
+        try
+        {
+            if (!File.Exists(SettingsPath))
+                return new OpenVoicerSettings();
 
-        var json = File.ReadAllText(SettingsPath);
-        return JsonSerializer.Deserialize<OpenVoicerSettings>(json) ?? new OpenVoicerSettings();
+            var json = File.ReadAllText(SettingsPath);
+            return JsonSerializer.Deserialize<OpenVoicerSettings>(json) ?? new OpenVoicerSettings();
+        }
+        catch
+        {
+            // Corrupted settings — return defaults
+            return new OpenVoicerSettings();
+        }
     }
 
     public void Save()

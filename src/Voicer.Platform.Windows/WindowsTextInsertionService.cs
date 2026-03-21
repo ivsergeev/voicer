@@ -1,4 +1,5 @@
 using System.Runtime.InteropServices;
+using Serilog;
 using Voicer.Core.Interfaces;
 
 namespace Voicer.Platform.Windows;
@@ -143,7 +144,7 @@ public class WindowsTextInsertionService : ITextInsertionService
     {
         if (!OpenClipboard(IntPtr.Zero))
         {
-            Console.WriteLine("  [CLIPBOARD] OpenClipboard failed");
+            Log.Warning("OpenClipboard failed");
             return Task.CompletedTask;
         }
 
@@ -156,7 +157,7 @@ public class WindowsTextInsertionService : ITextInsertionService
             IntPtr hGlobal = GlobalAlloc(GMEM_MOVEABLE, (UIntPtr)byteCount);
             if (hGlobal == IntPtr.Zero)
             {
-                Console.WriteLine("  [CLIPBOARD] GlobalAlloc failed");
+                Log.Warning("GlobalAlloc failed for clipboard");
                 return Task.CompletedTask;
             }
 
@@ -210,12 +211,12 @@ public class WindowsTextInsertionService : ITextInsertionService
 
             var arr = events.ToArray();
             uint sent = SendInput((uint)arr.Length, arr, Marshal.SizeOf<INPUT>());
-            Console.WriteLine($"  [INSERT] SendInput sent {sent}/{arr.Length} events (all modifiers cleared before Ctrl+V)");
+            Log.Debug("SendInput sent {Sent}/{Total} events (all modifiers cleared before Ctrl+V)", sent, arr.Length);
 
             // If SendInput was blocked (UIPI), try WM_PASTE
             if (sent == 0)
             {
-                Console.WriteLine("  [INSERT] SendInput blocked, trying WM_PASTE fallback...");
+                Log.Warning("SendInput blocked, trying WM_PASTE fallback");
                 try
                 {
                     IntPtr target = targetWindow;
@@ -231,11 +232,11 @@ public class WindowsTextInsertionService : ITextInsertionService
                     }
 
                     SendMessage(target, WM_PASTE, IntPtr.Zero, IntPtr.Zero);
-                    Console.WriteLine($"  [INSERT] WM_PASTE sent to 0x{target:X}");
+                    Log.Debug("WM_PASTE sent to 0x{Target:X}", target);
                 }
                 catch (Exception ex)
                 {
-                    Console.WriteLine($"  [INSERT] WM_PASTE also failed: {ex.Message}");
+                    Log.Error(ex, "WM_PASTE fallback also failed");
                 }
             }
         });
@@ -262,7 +263,7 @@ public class WindowsTextInsertionService : ITextInsertionService
 
             var arr = events.ToArray();
             uint sent = SendInput((uint)arr.Length, arr, Marshal.SizeOf<INPUT>());
-            Console.WriteLine($"  [COPY] SendInput sent {sent}/{arr.Length} events (Ctrl+C)");
+            Log.Debug("SendInput sent {Sent}/{Total} events (Ctrl+C)", sent, arr.Length);
         });
     }
 

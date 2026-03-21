@@ -15,6 +15,7 @@ public partial class SettingsWindow : Window
     private List<(string Name, string Description, string Mode)> _agents = new();
 
     public event Action<OpenVoicerSettings>? SettingsChanged;
+    public event Action? RefreshRequested;
 
     public SettingsWindow() : this(new OpenVoicerSettings(), null) { }
 
@@ -28,9 +29,19 @@ public partial class SettingsWindow : Window
         VoicerPortTextBox.Text = settings.VoicerWsPort.ToString();
         OpenCodePortTextBox.Text = settings.OpenCodePort.ToString();
         AutoStartCheckBox.IsChecked = settings.AutoStartOpenCode;
-        UseWslCheckBox.IsChecked = settings.UseWsl;
-        WslDistroTextBox.Text = settings.WslDistro;
-        WslDistroGrid.IsVisible = settings.UseWsl;
+        // WSL section — only available on Windows
+        if (OperatingSystem.IsWindows())
+        {
+            UseWslCheckBox.IsChecked = settings.UseWsl;
+            WslDistroTextBox.Text = settings.WslDistro;
+            WslWorkDirTextBox.Text = settings.WslWorkDir;
+            WslDistroGrid.IsVisible = settings.UseWsl;
+            WslWorkDirGrid.IsVisible = settings.UseWsl;
+        }
+        else
+        {
+            WslSection.IsVisible = false;
+        }
 
         // Notifications
         ShowPopupCheckBox.IsChecked = settings.ShowPopup;
@@ -249,6 +260,7 @@ public partial class SettingsWindow : Window
             AutoStartOpenCode = AutoStartCheckBox.IsChecked == true,
             UseWsl = UseWslCheckBox.IsChecked == true,
             WslDistro = WslDistroTextBox.Text?.Trim() ?? "",
+            WslWorkDir = WslWorkDirTextBox.Text?.Trim() ?? "~",
             ProviderID = providerID,
             ModelID = modelID,
             AgentID = agentID,
@@ -262,9 +274,33 @@ public partial class SettingsWindow : Window
         Close();
     }
 
+    private void Refresh_Click(object? sender, RoutedEventArgs e)
+    {
+        ModelStatusText.Text = "Загрузка...";
+        AgentDescText.Text = "Загрузка...";
+        ProviderComboBox.Items.Clear();
+        ModelComboBox.Items.Clear();
+        AgentComboBox.Items.Clear();
+        _providers.Clear();
+        _agents.Clear();
+
+        if (_openCodeClient != null)
+        {
+            _ = LoadProvidersAsync();
+            _ = LoadAgentsAsync();
+        }
+        else
+        {
+            ModelStatusText.Text = "OpenCode не подключён";
+            AgentDescText.Text = "OpenCode не подключён";
+        }
+    }
+
     private void UseWsl_Changed(object? sender, RoutedEventArgs e)
     {
-        WslDistroGrid.IsVisible = UseWslCheckBox.IsChecked == true;
+        var useWsl = UseWslCheckBox.IsChecked == true;
+        WslDistroGrid.IsVisible = useWsl;
+        WslWorkDirGrid.IsVisible = useWsl;
     }
 
     private void Cancel_Click(object? sender, RoutedEventArgs e)

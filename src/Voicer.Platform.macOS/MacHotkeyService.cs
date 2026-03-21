@@ -1,4 +1,5 @@
 using System.Runtime.InteropServices;
+using Serilog;
 using Voicer.Core.Interfaces;
 using Voicer.Core.Models;
 
@@ -150,8 +151,7 @@ public class MacHotkeyService : IHotkeyService
 
         if (_eventTap == IntPtr.Zero)
         {
-            Console.WriteLine("[macOS] ERROR: Failed to create CGEventTap.");
-            Console.WriteLine("  Grant Accessibility permission: System Settings → Privacy & Security → Accessibility.");
+            Log.Error("Failed to create CGEventTap. Grant Accessibility permission: System Settings -> Privacy & Security -> Accessibility");
             return;
         }
 
@@ -162,7 +162,7 @@ public class MacHotkeyService : IHotkeyService
         CFRunLoopAddSource(_runLoop, _runLoopSource, commonModes);
         CGEventTapEnable(_eventTap, true);
 
-        Console.WriteLine("[macOS] CGEventTap active. Listening for hotkeys.");
+        Log.Information("macOS CGEventTap active, listening for hotkeys");
         CFRunLoopRun();
     }
 

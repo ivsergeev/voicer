@@ -1,4 +1,5 @@
 using System.IO;
+using Serilog;
 using SherpaOnnx;
 
 namespace Voicer.Core.Services;
@@ -20,9 +21,9 @@ public class SpeechRecognitionService : IDisposable
         if (!File.Exists(tokensPath))
             throw new FileNotFoundException($"Tokens file not found: {tokensPath}");
 
-        Console.WriteLine($"  [SpeechService] Model: {modelPath} ({new FileInfo(modelPath).Length / 1024 / 1024} MB)");
-        Console.WriteLine($"  [SpeechService] Tokens: {tokensPath}");
-        Console.WriteLine($"  [SpeechService] Threads: {numThreads}");
+        Log.Information("SpeechService model: {ModelPath} ({SizeMB} MB)", modelPath, new FileInfo(modelPath).Length / 1024 / 1024);
+        Log.Information("SpeechService tokens: {TokensPath}", tokensPath);
+        Log.Information("SpeechService threads: {NumThreads}", numThreads);
 
         var config = new OfflineRecognizerConfig();
 
@@ -37,24 +38,24 @@ public class SpeechRecognitionService : IDisposable
         config.FeatConfig.SampleRate = 16000;
         config.FeatConfig.FeatureDim = 64;  // GigaAM expects 64-dim features
 
-        Console.WriteLine("  [SpeechService] Config created, calling OfflineRecognizer constructor...");
+        Log.Debug("SpeechService config created, calling OfflineRecognizer constructor");
 
         _recognizer = new OfflineRecognizer(config);
 
-        Console.WriteLine("  [SpeechService] OfflineRecognizer created successfully.");
+        Log.Debug("SpeechService OfflineRecognizer created successfully");
         _initialized = true;
 
         // Warmup: run a short silence through the model to pre-load weights.
         // Non-fatal — if warmup fails, real recognition may still work.
         try
         {
-            Console.WriteLine("  [SpeechService] Running warmup (3s silence)...");
+            Log.Information("SpeechService running warmup (3s silence)");
             Recognize(new float[48000]); // 3 seconds at 16kHz
-            Console.WriteLine("  [SpeechService] Warmup complete.");
+            Log.Information("SpeechService warmup complete");
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"  [SpeechService] Warmup failed (non-fatal): {ex.Message}");
+            Log.Warning(ex, "SpeechService warmup failed (non-fatal)");
         }
     }
 
@@ -66,12 +67,20 @@ public class SpeechRecognitionService : IDisposable
         if (samples.Length == 0)
             return string.Empty;
 
-        using var stream = _recognizer.CreateStream();
-        stream.AcceptWaveform(16000, samples);
-        _recognizer.Decode(stream);
-        var result = stream.Result;
+        try
+        {
+            using var stream = _recognizer.CreateStream();
+            stream.AcceptWaveform(16000, samples);
+            _recognizer.Decode(stream);
+            var result = stream.Result;
 
-        return result.Text.Trim();
+            return result.Text.Trim();
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "Speech recognition failed");
+            return string.Empty;
+        }
     }
 
     public void Dispose()

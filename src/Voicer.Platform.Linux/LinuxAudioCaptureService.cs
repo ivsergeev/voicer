@@ -1,4 +1,5 @@
 using System.Runtime.InteropServices;
+using Serilog;
 using Voicer.Core.Interfaces;
 
 namespace Voicer.Platform.Linux;
@@ -71,7 +72,7 @@ public class LinuxAudioCaptureService : IAudioCaptureService
         if (_paHandle == IntPtr.Zero)
         {
             var errMsg = Marshal.PtrToStringAnsi(pa_strerror(error)) ?? $"error {error}";
-            Console.WriteLine($"[Linux] Failed to open PulseAudio: {errMsg}");
+            Log.Error("Failed to open PulseAudio: {ErrorMessage}", errMsg);
             return;
         }
 
@@ -93,7 +94,7 @@ public class LinuxAudioCaptureService : IAudioCaptureService
             if (result < 0)
             {
                 var errMsg = Marshal.PtrToStringAnsi(pa_strerror(error)) ?? $"error {error}";
-                Console.WriteLine($"[Linux] PulseAudio read error: {errMsg}");
+                Log.Error("PulseAudio read error: {ErrorMessage}", errMsg);
                 break;
             }
 

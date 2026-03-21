@@ -6,6 +6,7 @@ using Microsoft.Extensions.DependencyInjection;
 using OpenVoicer.Models;
 using OpenVoicer.Services;
 using OpenVoicer.Views;
+using Serilog;
 using SkiaSharp;
 
 namespace OpenVoicer;
@@ -50,10 +51,9 @@ public partial class App : Application
                 });
                 _eventService.AgentIdle += (sessionId, lastText, agent) => Dispatcher.UIThread.Post(() =>
                 {
-                    var desc = lastText != null
-                        ? (lastText.Length > 100 ? lastText.Substring(0, 100) + "..." : lastText)
-                        : null;
-                    ShowNotification("Готово", desc, "done", badge: agent ?? "Build",
+                    var trimmed = lastText?.Trim();
+                    // Pass full text — popup will show preview and expand on click
+                    ShowNotification("Готово", trimmed, "done", badge: agent ?? "Build",
                         duration: _settings.PopupDurationSeconds);
                 });
 
@@ -67,7 +67,7 @@ public partial class App : Application
                     if (!string.IsNullOrEmpty(tag) &&
                         string.Equals(tag, _settings.NewSessionTag, StringComparison.OrdinalIgnoreCase))
                     {
-                        Console.WriteLine("[App] New session tag received, creating new session...");
+                        Log.Information("[App] New session tag received, creating new session...");
                         _ = HandleNewSessionAsync(text, context);
                         return;
                     }
@@ -79,7 +79,7 @@ public partial class App : Application
                             ? $"{context}\n\n{text}"
                             : text;
 
-                        Console.WriteLine($"[App] Auto-sending to OpenCode: \"{prompt.Substring(0, Math.Min(prompt.Length, 80))}\" agent={_settings.AgentID}");
+                        Log.Information("[App] Auto-sending to OpenCode: {Prompt} agent={AgentID}", prompt.Substring(0, Math.Min(prompt.Length, 80)), _settings.AgentID);
                         _ = _openCodeClient.SendPromptAsync(prompt, _settings.AgentID);
                     }
                 };
@@ -119,7 +119,9 @@ public partial class App : Application
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"FATAL: OnFrameworkInitializationCompleted failed: {ex}");
+                Log.Fatal(ex, "[App] FATAL: OnFrameworkInitializationCompleted failed");
+                // Without tray icon the app is invisible — force exit
+                Environment.Exit(1);
             }
         }
 
@@ -188,24 +190,26 @@ public partial class App : Application
                 attachArgs += $" --session {sessionId}";
 
             var processManager = Program.Services.GetService(typeof(OpenCodeProcessManager)) as OpenCodeProcessManager;
-            var (fileName, arguments) = processManager?.GetTuiLaunchArgs(attachArgs)
-                ?? ("opencode", attachArgs);
-
-            Console.WriteLine($"[App] Launching TUI: {fileName} {arguments}");
-
-            var psi = new System.Diagnostics.ProcessStartInfo
+            if (processManager != null)
             {
-                FileName = "cmd.exe",
-                Arguments = $"/c start \"OpenCode\" {fileName} {arguments}",
-                UseShellExecute = false,
-                CreateNoWindow = true,
-            };
-
-            System.Diagnostics.Process.Start(psi);
+                processManager.LaunchTui(attachArgs);
+            }
+            else
+            {
+                // Fallback
+                var psi = new System.Diagnostics.ProcessStartInfo
+                {
+                    FileName = "cmd.exe",
+                    Arguments = $"/c start \"OpenCode\" opencode {attachArgs}",
+                    UseShellExecute = false,
+                    CreateNoWindow = true,
+                };
+                System.Diagnostics.Process.Start(psi);
+            }
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[App] Failed to launch TUI: {ex.Message}");
+            Log.Error(ex, "[App] Failed to launch TUI");
             ShowNotification("Ошибка", $"Не удалось запустить OpenCode TUI: {ex.Message}", "error");
         }
     }
@@ -215,7 +219,7 @@ public partial class App : Application
         var sessionId = await _openCodeClient.CreateNewSessionAsync();
         if (sessionId != null)
         {
-            Console.WriteLine($"[App] New session created: {sessionId}");
+            Log.Information("[App] New session created: {SessionId}", sessionId);
             Dispatcher.UIThread.Post(() =>
                 ShowNotification("Новая сессия", sessionId, "agent",
                     duration: _settings.PopupDurationSeconds));
@@ -323,12 +327,19 @@ public partial class App : Application
             window.SettingsChanged += newSettings =>
             {
                 bool wsPortChanged = _settings.VoicerWsPort != newSettings.VoicerWsPort;
+                bool ocPortChanged = _settings.OpenCodePort != newSettings.OpenCodePort;
+                bool wslChanged = _settings.UseWsl != newSettings.UseWsl ||
+                                  _settings.WslDistro != newSettings.WslDistro ||
+                                  _settings.WslWorkDir != newSettings.WslWorkDir;
                 bool modelChanged = _settings.ProviderID != newSettings.ProviderID ||
                                     _settings.ModelID != newSettings.ModelID;
 
                 _settings.VoicerWsPort = newSettings.VoicerWsPort;
                 _settings.OpenCodePort = newSettings.OpenCodePort;
                 _settings.AutoStartOpenCode = newSettings.AutoStartOpenCode;
+                _settings.UseWsl = newSettings.UseWsl;
+                _settings.WslDistro = newSettings.WslDistro;
+                _settings.WslWorkDir = newSettings.WslWorkDir;
                 _settings.ProviderID = newSettings.ProviderID;
                 _settings.ModelID = newSettings.ModelID;
                 _settings.AgentID = newSettings.AgentID;
@@ -344,6 +355,20 @@ public partial class App : Application
                     _wsClient.Start();
                 }
 
+                if (ocPortChanged || wslChanged)
+                {
+                    // Restart OpenCode with new settings
+                    Log.Information("[App] OpenCode settings changed, restarting...");
+                    _eventService.Stop();
+                    _processManager.Stop();
+                    if (_settings.AutoStartOpenCode)
+                    {
+                        _processManager.Start();
+                    }
+                    _eventService.Start();
+                    UpdateOpenCodeStatus();
+                }
+
                 if (modelChanged && !string.IsNullOrEmpty(newSettings.ProviderID) &&
                     !string.IsNullOrEmpty(newSettings.ModelID))
                 {
@@ -356,7 +381,7 @@ public partial class App : Application
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"ERROR: ShowSettings failed: {ex}");
+            Log.Error(ex, "[App] ShowSettings failed");
             _settingsOpen = false;
         }
     }
@@ -390,7 +415,7 @@ public partial class App : Application
 
     private void ExitApplication()
     {
-        Console.WriteLine("Shutting down...");
+        Log.Information("[App] Shutting down...");
 
         _wsClient.Stop();
         _eventService.Stop();

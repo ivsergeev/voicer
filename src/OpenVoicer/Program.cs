@@ -2,6 +2,7 @@ using Avalonia;
 using Microsoft.Extensions.DependencyInjection;
 using OpenVoicer.Models;
 using OpenVoicer.Services;
+using Serilog;
 
 namespace OpenVoicer;
 
@@ -12,21 +13,42 @@ class Program
     [STAThread]
     public static void Main(string[] args)
     {
-        Console.WriteLine("=== OpenVoicer starting ===");
-        Console.WriteLine($"  Version: {typeof(Program).Assembly.GetName().Version}");
-        Console.WriteLine($"  Runtime: {Environment.Version}");
-        Console.WriteLine($"  OS: {Environment.OSVersion}");
-        Console.WriteLine($"  BaseDir: {AppDomain.CurrentDomain.BaseDirectory}");
-        Console.WriteLine($"  Args: [{string.Join(", ", args)}]");
+        var logDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "logs");
+
+        Log.Logger = new LoggerConfiguration()
+            .MinimumLevel.Debug()
+            .WriteTo.Console(outputTemplate: "[{Timestamp:HH:mm:ss.fff} {Level:u3}] {Message:lj}{NewLine}{Exception}")
+            .WriteTo.File(
+                Path.Combine(logDir, "log.txt"),
+                rollingInterval: RollingInterval.Day,
+                retainedFileCountLimit: 5,
+                outputTemplate: "[{Timestamp:yyyy-MM-dd HH:mm:ss.fff} {Level:u3}] {Message:lj}{NewLine}{Exception}",
+                fileSizeLimitBytes: 2 * 1024 * 1024,
+                rollOnFileSizeLimit: true)
+            .CreateLogger();
+
+        Log.Information("=== OpenVoicer starting ===");
+        Log.Information("  Version: {Version}", typeof(Program).Assembly.GetName().Version);
+        Log.Information("  Runtime: {Runtime}", Environment.Version);
+        Log.Information("  OS: {OS}", Environment.OSVersion);
+        Log.Information("  BaseDir: {BaseDir}", AppDomain.CurrentDomain.BaseDirectory);
+        Log.Information("  Args: [{Args}]", string.Join(", ", args));
 
         AppDomain.CurrentDomain.UnhandledException += (_, e) =>
         {
-            Console.WriteLine($"FATAL UNHANDLED EXCEPTION: {e.ExceptionObject}");
+            Log.Fatal("UNHANDLED EXCEPTION: {Exception}", e.ExceptionObject);
+            Log.CloseAndFlush();
+        };
+
+        AppDomain.CurrentDomain.ProcessExit += (_, _) =>
+        {
+            Log.Information("=== OpenVoicer process exit ===");
+            Log.CloseAndFlush();
         };
 
         TaskScheduler.UnobservedTaskException += (_, e) =>
         {
-            Console.WriteLine($"UNOBSERVED TASK EXCEPTION: {e.Exception}");
+            Log.Error(e.Exception, "UNOBSERVED TASK EXCEPTION");
             e.SetObserved();
         };
 
@@ -41,17 +63,21 @@ class Program
             services.AddSingleton<OpenCodeEventService>();
 
             Services = services.BuildServiceProvider();
-            Console.WriteLine("  DI container built.");
+            Log.Information("  DI container built.");
 
-            Console.WriteLine("  Starting Avalonia...");
+            Log.Information("  Starting Avalonia...");
             BuildAvaloniaApp().StartWithClassicDesktopLifetime(args);
 
-            Console.WriteLine("=== OpenVoicer exited normally ===");
+            Log.Information("=== OpenVoicer exited normally ===");
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"FATAL EXCEPTION in Main: {ex}");
+            Log.Fatal(ex, "FATAL EXCEPTION in Main");
             throw;
+        }
+        finally
+        {
+            Log.CloseAndFlush();
         }
     }
 

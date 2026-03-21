@@ -2,6 +2,7 @@ using System.Net.WebSockets;
 using System.Text;
 using System.Text.Json;
 using OpenVoicer.Models;
+using Serilog;
 
 namespace OpenVoicer.Services;
 
@@ -79,7 +80,7 @@ public class VoicerWsClient : IDisposable
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[WS] Connection error: {ex.Message}");
+                Log.Error(ex, "[WS] Connection error");
             }
 
             IsConnected = false;
@@ -88,7 +89,7 @@ public class VoicerWsClient : IDisposable
 
             if (ct.IsCancellationRequested) break;
 
-            Console.WriteLine($"[WS] Reconnecting in {_reconnectDelay}ms...");
+            Log.Debug("[WS] Reconnecting in {ReconnectDelay}ms...", _reconnectDelay);
             try { await Task.Delay(_reconnectDelay, ct); }
             catch (OperationCanceledException) { break; }
 
@@ -102,13 +103,13 @@ public class VoicerWsClient : IDisposable
         _ws = new ClientWebSocket();
 
         var url = $"ws://localhost:{_settings.VoicerWsPort}";
-        Console.WriteLine($"[WS] Connecting to {url}...");
+        Log.Debug("[WS] Connecting to {Url}...", url);
 
         await _ws.ConnectAsync(new Uri(url), ct);
 
         IsConnected = true;
         _reconnectDelay = 1000;
-        Console.WriteLine($"[WS] Connected to Voicer");
+        Log.Information("[WS] Connected to Voicer");
         Connected?.Invoke();
 
         // Auto-claim
@@ -123,7 +124,7 @@ public class VoicerWsClient : IDisposable
 
             if (result.MessageType == WebSocketMessageType.Close)
             {
-                Console.WriteLine("[WS] Server closed connection");
+                Log.Information("[WS] Server closed connection");
                 break;
             }
 
@@ -151,7 +152,7 @@ public class VoicerWsClient : IDisposable
                     if (!doc.RootElement.TryGetProperty("active", out var activeProp)) break;
                     var active = activeProp.GetBoolean();
                     IsClaimed = active;
-                    Console.WriteLine($"[WS] Claim: {(active ? "active" : "inactive")}");
+                    Log.Debug("[WS] Claim: {Active}", active ? "active" : "inactive");
                     ClaimChanged?.Invoke(active);
                     break;
 
@@ -159,7 +160,7 @@ public class VoicerWsClient : IDisposable
                     var text = doc.RootElement.TryGetProperty("text", out var t) ? t.GetString() : null;
                     var context = doc.RootElement.TryGetProperty("context", out var c) ? c.GetString() : null;
                     var tag = doc.RootElement.TryGetProperty("tag", out var tg) ? tg.GetString() : null;
-                    Console.WriteLine($"[WS] Transcription: \"{text}\"{(tag != null ? $" [{tag}]" : "")}");
+                    Log.Information("[WS] Transcription: {Text} {Tag}", text, tag);
                     TranscriptionReceived?.Invoke(text ?? "", context, tag);
                     break;
 
@@ -167,21 +168,21 @@ public class VoicerWsClient : IDisposable
                     var status = doc.RootElement.TryGetProperty("status", out var s) ? s.GetString() : null;
                     if (status != null)
                     {
-                        Console.WriteLine($"[WS] Voicer status: {status}");
+                        Log.Debug("[WS] Voicer status: {Status}", status);
                         StatusChanged?.Invoke(status);
                     }
                     break;
 
                 case "error":
                     var msg = doc.RootElement.TryGetProperty("message", out var m) ? m.GetString() : null;
-                    Console.WriteLine($"[WS] Voicer error: {msg}");
+                    Log.Error("[WS] Voicer error: {ErrorMessage}", msg);
                     ErrorReceived?.Invoke(msg ?? "Unknown error");
                     break;
             }
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[WS] Failed to parse message: {ex.Message}");
+            Log.Error(ex, "[WS] Failed to parse message");
         }
     }
 
@@ -198,7 +199,7 @@ public class VoicerWsClient : IDisposable
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[WS] Send error: {ex.Message}");
+            Log.Error(ex, "[WS] Send error");
         }
     }
 

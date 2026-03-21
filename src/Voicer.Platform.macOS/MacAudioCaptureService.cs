@@ -1,4 +1,5 @@
 using System.Runtime.InteropServices;
+using Serilog;
 using Voicer.Core.Interfaces;
 
 namespace Voicer.Platform.macOS;
@@ -128,8 +129,7 @@ public class MacAudioCaptureService : IAudioCaptureService
 
         if (status != 0)
         {
-            Console.WriteLine($"[macOS] AudioQueueNewInput failed: {status}");
-            Console.WriteLine("  Ensure microphone access is granted in System Settings → Privacy → Microphone.");
+            Log.Error("AudioQueueNewInput failed with status {Status}. Ensure microphone access is granted in System Settings -> Privacy -> Microphone", status);
             return;
         }
 
@@ -142,7 +142,7 @@ public class MacAudioCaptureService : IAudioCaptureService
         status = AudioQueueStart(_audioQueue, IntPtr.Zero);
         if (status != 0)
         {
-            Console.WriteLine($"[macOS] AudioQueueStart failed: {status}");
+            Log.Error("AudioQueueStart failed with status {Status}", status);
             AudioQueueDispose(_audioQueue, 1);
             return;
         }

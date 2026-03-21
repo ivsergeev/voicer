@@ -1,6 +1,7 @@
 using System.Net.Http;
 using System.Text.Json;
 using OpenVoicer.Models;
+using Serilog;
 
 namespace OpenVoicer.Services;
 
@@ -65,7 +66,7 @@ public class OpenCodeEventService : IDisposable
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[SSE] Connection error: {ex.Message}");
+                Log.Error(ex, "[SSE] Connection error");
             }
 
             if (IsConnected)
@@ -76,7 +77,7 @@ public class OpenCodeEventService : IDisposable
 
             if (ct.IsCancellationRequested) break;
 
-            Console.WriteLine($"[SSE] Reconnecting in {_reconnectDelay}ms...");
+            Log.Debug("[SSE] Reconnecting in {ReconnectDelay}ms...", _reconnectDelay);
             try { await Task.Delay(_reconnectDelay, ct); }
             catch (OperationCanceledException) { break; }
 
@@ -87,7 +88,7 @@ public class OpenCodeEventService : IDisposable
     private async Task ReadSseStream(CancellationToken ct)
     {
         var url = $"http://localhost:{_settings.OpenCodePort}/event";
-        Console.WriteLine($"[SSE] Connecting to {url}...");
+        Log.Debug("[SSE] Connecting to {Url}...", url);
 
         var request = new HttpRequestMessage(HttpMethod.Get, url);
         request.Headers.Accept.Add(new System.Net.Http.Headers.MediaTypeWithQualityHeaderValue("text/event-stream"));
@@ -100,7 +101,7 @@ public class OpenCodeEventService : IDisposable
         _isBusy = false;
         _lastAssistantText = null;
         _lastAgent = null;
-        Console.WriteLine("[SSE] Connected to OpenCode events");
+        Log.Information("[SSE] Connected to OpenCode events");
         Connected?.Invoke();
 
         using var stream = await response.Content.ReadAsStreamAsync(ct);
@@ -119,7 +120,7 @@ public class OpenCodeEventService : IDisposable
             }
             catch (OperationCanceledException) when (!ct.IsCancellationRequested)
             {
-                Console.WriteLine("[SSE] Read timeout, reconnecting...");
+                Log.Warning("[SSE] Read timeout, reconnecting...");
                 break;
             }
             if (line == null) break; // Stream closed
@@ -133,7 +134,7 @@ public class OpenCodeEventService : IDisposable
                 }
                 catch (Exception ex)
                 {
-                    Console.WriteLine($"[SSE] Parse error: {ex.Message}");
+                    Log.Error(ex, "[SSE] Parse error");
                 }
             }
         }
@@ -152,7 +153,7 @@ public class OpenCodeEventService : IDisposable
         switch (type)
         {
             case "server.connected":
-                Console.WriteLine("[SSE] Server connected event received");
+                Log.Debug("[SSE] Server connected event received");
                 break;
 
             case "session.status":
@@ -183,6 +184,7 @@ public class OpenCodeEventService : IDisposable
         var sessionId = sidProp.GetString() ?? "";
 
         if (props.TryGetProperty("status", out var status) &&
+            status.ValueKind == JsonValueKind.Object &&
             status.TryGetProperty("type", out var statusType))
         {
             var st = statusType.GetString();
@@ -190,7 +192,7 @@ public class OpenCodeEventService : IDisposable
             {
                 _isBusy = true;
                 _lastAssistantText = null;
-                Console.WriteLine($"[SSE] Agent busy: {sessionId}");
+                Log.Debug("[SSE] Agent busy: {SessionId}", sessionId);
                 AgentBusy?.Invoke(sessionId);
             }
             else if (st == "idle")
@@ -212,7 +214,7 @@ public class OpenCodeEventService : IDisposable
         if (!_isBusy) return;
         _isBusy = false;
         var text = _lastAssistantText;
-        Console.WriteLine($"[SSE] Agent idle: {sessionId}, text: \"{text?.Substring(0, Math.Min(text?.Length ?? 0, 60))}\"");
+        Log.Debug("[SSE] Agent idle: {SessionId}, textLen={Len}", sessionId, text?.Length ?? 0);
         AgentIdle?.Invoke(sessionId, text, _lastAgent);
         _lastAssistantText = null;
     }
@@ -220,6 +222,7 @@ public class OpenCodeEventService : IDisposable
     private void HandleMessagePartUpdated(JsonElement props)
     {
         if (!props.TryGetProperty("part", out var part)) return;
+        if (part.ValueKind != JsonValueKind.Object) return;
 
         var partType = part.TryGetProperty("type", out var pt) ? pt.GetString() : null;
 
@@ -236,6 +239,19 @@ public class OpenCodeEventService : IDisposable
     private void HandleMessagePartDelta(JsonElement props)
     {
         if (!props.TryGetProperty("delta", out var delta)) return;
+
+        // delta can be a string (plain text delta) or an object with type/content
+        if (delta.ValueKind == JsonValueKind.String)
+        {
+            var content = delta.GetString();
+            if (!string.IsNullOrEmpty(content))
+            {
+                _lastAssistantText = (_lastAssistantText ?? "") + content;
+            }
+            return;
+        }
+
+        if (delta.ValueKind != JsonValueKind.Object) return;
 
         var deltaType = delta.TryGetProperty("type", out var dt) ? dt.GetString() : null;
 
