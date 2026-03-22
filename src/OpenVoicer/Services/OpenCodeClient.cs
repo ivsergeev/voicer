@@ -23,7 +23,7 @@ public class OpenCodeClient : IDisposable
         _http = new HttpClient
         {
             BaseAddress = new Uri($"http://localhost:{_settings.OpenCodePort}"),
-            Timeout = TimeSpan.FromSeconds(30),
+            Timeout = TimeSpan.FromSeconds(60),
         };
         Log.Debug("[OC API] HttpClient created, base: {BaseAddress}", _http.BaseAddress);
     }
@@ -41,11 +41,42 @@ public class OpenCodeClient : IDisposable
 
     /// <summary>
     /// Creates a new OpenCode session and sets it as active.
+    /// Deletes the previous session to avoid accumulation.
     /// </summary>
     public async Task<string?> CreateNewSessionAsync()
     {
+        var oldSessionId = _activeSessionId;
         _activeSessionId = null;
-        return await CreateSessionAsync();
+
+        var newId = await CreateSessionAsync();
+
+        // Delete old session in background — don't block on it
+        if (oldSessionId != null && newId != null)
+        {
+            _ = DeleteSessionAsync(oldSessionId);
+        }
+
+        return newId;
+    }
+
+    /// <summary>
+    /// Deletes an OpenCode session via DELETE /session/{id}.
+    /// Best-effort — failures are logged but not propagated.
+    /// </summary>
+    private async Task DeleteSessionAsync(string sessionId)
+    {
+        try
+        {
+            var resp = await _http.DeleteAsync($"/session/{sessionId}");
+            if (resp.IsSuccessStatusCode)
+                Log.Information("[OC API] Deleted old session: {SessionId}", sessionId);
+            else
+                Log.Warning("[OC API] DELETE /session/{SessionId} returned {StatusCode}", sessionId, resp.StatusCode);
+        }
+        catch (Exception ex)
+        {
+            Log.Debug(ex, "[OC API] Failed to delete old session {SessionId} (non-critical)", sessionId);
+        }
     }
 
     /// <summary>

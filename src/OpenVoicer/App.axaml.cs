@@ -302,13 +302,28 @@ public partial class App : Application
 
     private async Task HandleNewSessionAsync(string? text, string? context)
     {
+        // Show immediate feedback — session creation can be slow
+        NotificationPopup? creatingPopup = null;
+        if (_settings.ShowPopup)
+        {
+            Dispatcher.UIThread.Post(() =>
+            {
+                creatingPopup = new NotificationPopup();
+                creatingPopup.Show("Создание сессии...", null, "processing", badge: "Session");
+            });
+        }
+
         var sessionId = await _openCodeClient.CreateNewSessionAsync();
+
         if (sessionId != null)
         {
             Log.Information("[App] New session created: {SessionId}", sessionId);
             Dispatcher.UIThread.Post(() =>
+            {
+                creatingPopup?.Dismiss();
                 ShowNotification("Новая сессия", sessionId, "agent",
-                    duration: _settings.PopupDurationSeconds));
+                    duration: _settings.PopupDurationSeconds);
+            });
 
             // If there was text with the new-session tag, send it as first prompt
             if (!string.IsNullOrEmpty(text))
@@ -322,7 +337,10 @@ public partial class App : Application
         else
         {
             Dispatcher.UIThread.Post(() =>
-                ShowNotification("Ошибка", "Не удалось создать новую сессию", "error"));
+            {
+                creatingPopup?.Dismiss();
+                ShowNotification("Ошибка", "Не удалось создать новую сессию", "error");
+            });
         }
     }
 
