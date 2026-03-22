@@ -39,21 +39,33 @@ public class VoicerWsClient : IDisposable
     {
         _cts?.Cancel();
 
-        if (_ws is { State: WebSocketState.Open })
-        {
-            try
-            {
-                SendJsonAsync(new { type = "release" }).Wait(2000);
-                _ws.CloseAsync(WebSocketCloseStatus.NormalClosure, "Shutting down", CancellationToken.None)
-                    .Wait(2000);
-            }
-            catch { /* best effort */ }
-        }
-
-        _ws?.Dispose();
+        var ws = _ws;
         _ws = null;
         IsConnected = false;
         IsClaimed = false;
+
+        if (ws is { State: WebSocketState.Open })
+        {
+            // Close gracefully on background thread to avoid blocking UI
+            Task.Run(async () =>
+            {
+                try
+                {
+                    using var timeout = new CancellationTokenSource(2000);
+                    await SendJsonAsync(new { type = "release" }, ws);
+                    await ws.CloseAsync(WebSocketCloseStatus.NormalClosure, "Shutting down", timeout.Token);
+                }
+                catch { /* best effort */ }
+                finally
+                {
+                    ws.Dispose();
+                }
+            });
+        }
+        else
+        {
+            ws?.Dispose();
+        }
     }
 
     public void SendClaim()
@@ -186,16 +198,18 @@ public class VoicerWsClient : IDisposable
         }
     }
 
-    private async Task SendJsonAsync(object obj)
+    private Task SendJsonAsync(object obj) => SendJsonAsync(obj, _ws);
+
+    private async Task SendJsonAsync(object obj, ClientWebSocket? ws)
     {
-        if (_ws is not { State: WebSocketState.Open }) return;
+        if (ws is not { State: WebSocketState.Open }) return;
 
         try
         {
             var json = JsonSerializer.Serialize(obj);
             var bytes = Encoding.UTF8.GetBytes(json);
             using var cts = new CancellationTokenSource(2000);
-            await _ws.SendAsync(bytes, WebSocketMessageType.Text, true, cts.Token);
+            await ws.SendAsync(bytes, WebSocketMessageType.Text, true, cts.Token);
         }
         catch (Exception ex)
         {

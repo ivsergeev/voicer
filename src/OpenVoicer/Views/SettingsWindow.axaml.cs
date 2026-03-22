@@ -34,9 +34,7 @@ public partial class SettingsWindow : Window
         {
             UseWslCheckBox.IsChecked = settings.UseWsl;
             WslDistroTextBox.Text = settings.WslDistro;
-            WslWorkDirTextBox.Text = settings.WslWorkDir;
             WslDistroGrid.IsVisible = settings.UseWsl;
-            WslWorkDirGrid.IsVisible = settings.UseWsl;
         }
         else
         {
@@ -266,7 +264,6 @@ public partial class SettingsWindow : Window
             UseWsl = UseWslCheckBox.IsChecked == true,
             WorkDir = WorkDirTextBox.Text?.Trim() ?? "",
             WslDistro = WslDistroTextBox.Text?.Trim() ?? "",
-            WslWorkDir = WslWorkDirTextBox.Text?.Trim() ?? "~",
             ProviderID = providerID,
             ModelID = modelID,
             AgentID = agentID,
@@ -307,7 +304,6 @@ public partial class SettingsWindow : Window
     {
         var useWsl = UseWslCheckBox.IsChecked == true;
         WslDistroGrid.IsVisible = useWsl;
-        WslWorkDirGrid.IsVisible = useWsl;
     }
 
     private void Cancel_Click(object? sender, RoutedEventArgs e)

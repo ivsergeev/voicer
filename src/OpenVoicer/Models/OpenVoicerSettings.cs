@@ -11,7 +11,6 @@ public class OpenVoicerSettings
     public bool AutoStartOpenCode { get; set; } = true;
     public bool UseWsl { get; set; } = false;
     public string WslDistro { get; set; } = "";
-    public string WslWorkDir { get; set; } = "~";
     public string WorkDir { get; set; } = "";
     public string? ProviderID { get; set; }
     public string? ModelID { get; set; }

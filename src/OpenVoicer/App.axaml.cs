@@ -492,8 +492,7 @@ public partial class App : Application
                 bool ocPortChanged = _settings.OpenCodePort != newSettings.OpenCodePort;
                 bool workDirChanged = _settings.WorkDir != newSettings.WorkDir;
                 bool wslChanged = _settings.UseWsl != newSettings.UseWsl ||
-                                  _settings.WslDistro != newSettings.WslDistro ||
-                                  _settings.WslWorkDir != newSettings.WslWorkDir;
+                                  _settings.WslDistro != newSettings.WslDistro;
                 bool modelChanged = _settings.ProviderID != newSettings.ProviderID ||
                                     _settings.ModelID != newSettings.ModelID;
 
@@ -503,7 +502,6 @@ public partial class App : Application
                 _settings.WorkDir = newSettings.WorkDir;
                 _settings.UseWsl = newSettings.UseWsl;
                 _settings.WslDistro = newSettings.WslDistro;
-                _settings.WslWorkDir = newSettings.WslWorkDir;
                 _settings.ProviderID = newSettings.ProviderID;
                 _settings.ModelID = newSettings.ModelID;
                 _settings.AgentID = newSettings.AgentID;

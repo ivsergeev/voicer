@@ -109,7 +109,7 @@ public class OpenCodeProcessManager : IDisposable
     {
         var distroArg = GetDistroArg();
 
-        var workDir = string.IsNullOrWhiteSpace(_settings.WslWorkDir) ? "~" : _settings.WslWorkDir;
+        var workDir = string.IsNullOrWhiteSpace(_settings.WorkDir) ? "~" : _settings.WorkDir;
         var port = _settings.OpenCodePort;
 
         // Force interactive bash so .bashrc is fully loaded
@@ -169,33 +169,37 @@ public class OpenCodeProcessManager : IDisposable
         if (proc == null) return;
         _process = null;
 
-        try
+        // Kill on background thread to avoid blocking UI (WaitForExit can take seconds, especially with WSL)
+        Task.Run(() =>
         {
-            bool hasExited;
-            try { hasExited = proc.HasExited; }
-            catch { hasExited = true; } // already disposed or inaccessible
-
-            if (!hasExited)
+            try
             {
-                try { Log.Information("[OC] Stopping (PID {Pid})...", proc.Id); }
-                catch { Log.Information("[OC] Stopping..."); }
+                bool hasExited;
+                try { hasExited = proc.HasExited; }
+                catch { hasExited = true; }
 
-                if (_settings.UseWsl)
-                    KillOpenCodeInWsl();
+                if (!hasExited)
+                {
+                    try { Log.Information("[OC] Stopping (PID {Pid})...", proc.Id); }
+                    catch { Log.Information("[OC] Stopping..."); }
 
-                proc.Kill(entireProcessTree: true);
-                proc.WaitForExit(5000);
+                    if (_settings.UseWsl)
+                        KillOpenCodeInWsl();
+
+                    proc.Kill(entireProcessTree: true);
+                    proc.WaitForExit(5000);
+                }
+                Log.Information("[OC] Stopped");
             }
-            Log.Information("[OC] Stopped");
-        }
-        catch (Exception ex)
-        {
-            Log.Error(ex, "[OC] Error stopping");
-        }
-        finally
-        {
-            proc.Dispose();
-        }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "[OC] Error stopping");
+            }
+            finally
+            {
+                proc.Dispose();
+            }
+        });
     }
 
     private void KillOpenCodeInWsl()
@@ -236,8 +240,12 @@ public class OpenCodeProcessManager : IDisposable
     /// </summary>
     public void LaunchTui(string attachArgs)
     {
+        // Run in background — WSL WriteTuiScript can block for seconds
         if (_settings.UseWsl)
-            LaunchTuiWsl(attachArgs);
+        {
+            Task.Run(() => LaunchTuiWsl(attachArgs));
+            return;
+        }
         else
             LaunchTuiDirect(attachArgs);
     }
@@ -245,7 +253,7 @@ public class OpenCodeProcessManager : IDisposable
     private void LaunchTuiWsl(string attachArgs)
     {
         var distroArg = GetDistroArg();
-        var workDir = string.IsNullOrWhiteSpace(_settings.WslWorkDir) ? "~" : _settings.WslWorkDir;
+        var workDir = string.IsNullOrWhiteSpace(_settings.WorkDir) ? "~" : _settings.WorkDir;
 
         // Step 1: Write TUI script inside WSL via stdin (avoids all escaping issues)
         const string tuiScript = "/tmp/openvoicer-tui.sh";

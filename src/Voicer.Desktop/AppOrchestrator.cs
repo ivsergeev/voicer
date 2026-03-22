@@ -458,12 +458,9 @@ public class AppOrchestrator : IDisposable
 
         if (action.Action == WsActionType.SendTag)
         {
-            // SendTag: no recording, immediately send tag
+            // SendTag: no recording, send tag with current clipboard as context
             var tag = action.Tag ?? "";
-            Log.Debug("WS SendTag: [{Tag}]", tag);
-            _wsServer.BroadcastTranscription("", tag: tag);
-            TranscriptionReady?.Invoke("", null, tag, "ws_tag");
-            _currentWsAction = null; // clear to avoid stale state
+            _ = SendTagWithClipboardAsync(tag);
             return;
         }
 
@@ -485,6 +482,24 @@ public class AppOrchestrator : IDisposable
             return;
 
         StopRecordingAndProcess();
+    }
+
+    private async Task SendTagWithClipboardAsync(string tag)
+    {
+        string? context = null;
+        try
+        {
+            context = await _textInsertionService.GetClipboardText();
+        }
+        catch (Exception ex)
+        {
+            Log.Warning(ex, "Failed to read clipboard for SendTag");
+        }
+
+        Log.Debug("WS SendTag: [{Tag}] context={HasContext}", tag, context != null);
+        _wsServer.BroadcastTranscription("", context, tag);
+        TranscriptionReady?.Invoke("", context, tag, "ws_tag");
+        _currentWsAction = null;
     }
 
     public void PauseForSettings()

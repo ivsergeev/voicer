@@ -56,10 +56,6 @@
                             <TextBlock Grid.Column="0" Text="WSL дистрибутив" Foreground="#555" FontSize="13" VerticalAlignment="Center"/>
                             <TextBox Grid.Column="1" x:Name="WslDistroTextBox" Watermark="по умолчанию" HorizontalAlignment="Stretch"/>
                         </Grid>
-                        <Grid ColumnDefinitions="120,*" x:Name="WslWorkDirGrid" IsVisible="False">
-                            <TextBlock Grid.Column="0" Text="Рабочий каталог WSL" Foreground="#555" FontSize="13" VerticalAlignment="Center"/>
-                            <TextBox Grid.Column="1" x:Name="WslWorkDirTextBox" Watermark="~ (домашний каталог)" HorizontalAlignment="Stretch"/>
-                        </Grid>
                     </StackPanel>
                 </StackPanel>
             </Border>
