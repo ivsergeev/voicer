@@ -23,6 +23,10 @@ public partial class App : Application
     private NativeMenuItem? _openCodeStatusItem;
     private NativeMenuItem? _openCodeToggleItem;
     private bool _settingsOpen;
+    private readonly Queue<NotificationPopup> _processingPopups = new();
+    private readonly List<(string Text, NotificationPopup? Popup)> _contextMessages = new();
+    private NotificationPopup? _responsePopup;
+    private bool _cancelRequested;
 
     public override void Initialize()
     {
@@ -46,13 +50,53 @@ public partial class App : Application
                 // SSE event service events
                 _eventService.AgentBusy += sessionId => Dispatcher.UIThread.Post(() =>
                 {
+                    // New agent work started — clear stale cancel flag
+                    _cancelRequested = false;
+
+                    // Skip if processing popups are already showing
+                    if (_processingPopups.Count > 0) return;
+
                     ShowNotification("Агент работает", null, "agent", badge: "Build",
                         duration: _settings.PopupDurationSeconds);
                 });
                 _eventService.AgentIdle += (sessionId, lastText, agent) => Dispatcher.UIThread.Post(() =>
                 {
+                    // Dismiss previous response popup
+                    _responsePopup?.Dismiss();
+                    _responsePopup = null;
+
+                    // After cancel: dismiss ALL processing popups, show one "Отменено"
+                    if (_cancelRequested)
+                    {
+                        _cancelRequested = false;
+                        DismissAllProcessingPopups();
+                        ShowNotification("Отменено", null, "agent", badge: agent ?? "Build",
+                            duration: _settings.PopupDurationSeconds);
+                        return;
+                    }
+
                     var trimmed = lastText?.Trim();
-                    // Pass full text — popup will show preview and expand on click
+
+                    if (_processingPopups.Count > 0)
+                    {
+                        // Keep the last popup → complete with response; dismiss the rest
+                        var last = DismissAllProcessingPopupsExceptLast();
+                        if (last != null)
+                        {
+                            // Subscribe and assign BEFORE Complete() to avoid
+                            // race where popup closes before handler is attached
+                            _responsePopup = last;
+                            last.Closed += (_, _) =>
+                            {
+                                if (_responsePopup == last) _responsePopup = null;
+                            };
+                            last.Complete("Готово", trimmed, badge: agent ?? "Build",
+                                duration: _settings.PopupDurationSeconds);
+                            return;
+                        }
+                    }
+
+                    // Fallback: no processing popup — show standalone
                     ShowNotification("Готово", trimmed, "done", badge: agent ?? "Build",
                         duration: _settings.PopupDurationSeconds);
                 });
@@ -72,15 +116,57 @@ public partial class App : Application
                         return;
                     }
 
-                    if (string.IsNullOrEmpty(tag) && !string.IsNullOrEmpty(text))
+                    // Context tag — accumulate, don't send yet
+                    if (!string.IsNullOrEmpty(tag) &&
+                        string.Equals(tag, _settings.ContextTag, StringComparison.OrdinalIgnoreCase))
                     {
-                        // No tag → auto-send to OpenCode
-                        var prompt = !string.IsNullOrEmpty(context)
-                            ? $"{context}\n\n{text}"
-                            : text;
+                        // Build context from text and/or selected text
+                        var parts = new List<string>();
+                        if (!string.IsNullOrEmpty(context)) parts.Add(context);
+                        if (!string.IsNullOrEmpty(text)) parts.Add(text);
+                        if (parts.Count == 0) return; // nothing to add
+
+                        var ctxText = string.Join("\n\n", parts);
+                        Log.Information("[App] Context message added: {Text}", ctxText.Substring(0, Math.Min(ctxText.Length, 80)));
+                        Dispatcher.UIThread.Post(() => AddContextMessage(ctxText));
+                        return;
+                    }
+
+                    // Any other message (no tag or unknown tag) → send to OpenCode
+                    {
+                        var parts = new List<string>();
+                        if (!string.IsNullOrEmpty(context)) parts.Add(context);
+                        if (!string.IsNullOrEmpty(text)) parts.Add(text);
+
+                        // Prepend accumulated context messages
+                        if (_contextMessages.Count > 0)
+                        {
+                            var ctxParts = _contextMessages.Select(c => c.Text).ToList();
+                            ctxParts.AddRange(parts);
+                            parts = ctxParts;
+
+                            // Capture popup refs, clear list synchronously, dismiss on UI thread
+                            var popups = _contextMessages
+                                .Where(c => c.Popup != null)
+                                .Select(c => c.Popup!)
+                                .ToList();
+                            _contextMessages.Clear();
+                            Dispatcher.UIThread.Post(() =>
+                            {
+                                foreach (var p in popups) p.Dismiss();
+                            });
+                        }
+
+                        if (parts.Count == 0) return; // nothing to send
+
+                        var prompt = string.Join("\n\n", parts);
 
                         Log.Information("[App] Auto-sending to OpenCode: {Prompt} agent={AgentID}", prompt.Substring(0, Math.Min(prompt.Length, 80)), _settings.AgentID);
                         _ = _openCodeClient.SendPromptAsync(prompt, _settings.AgentID);
+
+                        // Show persistent processing popup immediately
+                        Dispatcher.UIThread.Post(() => ShowProcessingPopup(
+                            !string.IsNullOrEmpty(text) ? text : "(контекст)"));
                     }
                 };
 
@@ -162,7 +248,7 @@ public partial class App : Application
 
         _trayIcon = new TrayIcon
         {
-            Icon = CreateTrayIcon(),
+            Icon = CreateTrayIcon(TrayConnectionState.Disconnected),
             ToolTipText = "OpenVoicer",
             Menu = menu,
             IsVisible = true,
@@ -240,6 +326,80 @@ public partial class App : Application
         }
     }
 
+    private void AddContextMessage(string text)
+    {
+        if (!_settings.ShowPopup)
+        {
+            _contextMessages.Add((text, Popup: null));
+            return;
+        }
+
+        var displayText = text;
+        if (_settings.PopupMaxLength > 0 && displayText.Length > _settings.PopupMaxLength)
+            displayText = displayText.Substring(0, _settings.PopupMaxLength) + "...";
+
+        var popup = new NotificationPopup();
+        var entry = (Text: text, Popup: (NotificationPopup?)popup);
+
+        // Add to list and show BEFORE subscribing to close events
+        // to avoid race where popup closes before entry is in the list
+        _contextMessages.Add(entry);
+        popup.Show("Контекст", $"\u201C{displayText}\u201D", "context",
+            badge: _settings.ContextTag);
+
+        popup.RemoveRequested += () =>
+        {
+            _contextMessages.RemoveAll(c => c.Popup == popup);
+            Log.Information("[App] Context message removed, {Count} remaining", _contextMessages.Count);
+        };
+        popup.Closed += (_, _) =>
+        {
+            _contextMessages.RemoveAll(c => c.Popup == popup);
+        };
+        Log.Information("[App] Context messages: {Count}", _contextMessages.Count);
+    }
+
+    private void ClearContextMessages()
+    {
+        foreach (var (_, popup) in _contextMessages)
+            popup?.Dismiss();
+        _contextMessages.Clear();
+    }
+
+    private void DismissAllProcessingPopups()
+    {
+        while (_processingPopups.Count > 0)
+            _processingPopups.Dequeue().Dismiss();
+    }
+
+    private NotificationPopup? DismissAllProcessingPopupsExceptLast()
+    {
+        while (_processingPopups.Count > 1)
+            _processingPopups.Dequeue().Dismiss();
+        return _processingPopups.Count > 0 ? _processingPopups.Dequeue() : null;
+    }
+
+    private void ShowProcessingPopup(string promptText)
+    {
+        if (!_settings.ShowPopup) return;
+
+        var displayText = promptText;
+        if (_settings.PopupMaxLength > 0 && displayText.Length > _settings.PopupMaxLength)
+            displayText = displayText.Substring(0, _settings.PopupMaxLength) + "...";
+
+        var popup = new NotificationPopup();
+        popup.CancelRequested += () =>
+        {
+            Log.Information("[App] Cancel requested from popup");
+            _cancelRequested = true;
+            _ = _openCodeClient.AbortAsync();
+        };
+
+        _processingPopups.Enqueue(popup);
+        popup.Show("Обработка...", $"\u201C{displayText}\u201D", "processing",
+            badge: _settings.AgentID ?? "Build");
+    }
+
     public void ShowNotification(string title, string? description, string type,
         string? badge = null, double duration = 4,
         Action? onApprove = null, Action? onReject = null)
@@ -273,6 +433,7 @@ public partial class App : Application
         }
 
         UpdateTooltip();
+        RefreshTrayIcon();
     }
 
     private void UpdateOpenCodeStatus()
@@ -296,6 +457,7 @@ public partial class App : Application
         }
 
         UpdateTooltip();
+        RefreshTrayIcon();
     }
 
     private void UpdateTooltip()
@@ -328,6 +490,7 @@ public partial class App : Application
             {
                 bool wsPortChanged = _settings.VoicerWsPort != newSettings.VoicerWsPort;
                 bool ocPortChanged = _settings.OpenCodePort != newSettings.OpenCodePort;
+                bool workDirChanged = _settings.WorkDir != newSettings.WorkDir;
                 bool wslChanged = _settings.UseWsl != newSettings.UseWsl ||
                                   _settings.WslDistro != newSettings.WslDistro ||
                                   _settings.WslWorkDir != newSettings.WslWorkDir;
@@ -337,6 +500,7 @@ public partial class App : Application
                 _settings.VoicerWsPort = newSettings.VoicerWsPort;
                 _settings.OpenCodePort = newSettings.OpenCodePort;
                 _settings.AutoStartOpenCode = newSettings.AutoStartOpenCode;
+                _settings.WorkDir = newSettings.WorkDir;
                 _settings.UseWsl = newSettings.UseWsl;
                 _settings.WslDistro = newSettings.WslDistro;
                 _settings.WslWorkDir = newSettings.WslWorkDir;
@@ -344,10 +508,10 @@ public partial class App : Application
                 _settings.ModelID = newSettings.ModelID;
                 _settings.AgentID = newSettings.AgentID;
                 _settings.NewSessionTag = newSettings.NewSessionTag;
+                _settings.ContextTag = newSettings.ContextTag;
                 _settings.ShowPopup = newSettings.ShowPopup;
                 _settings.PopupDurationSeconds = newSettings.PopupDurationSeconds;
                 _settings.PopupMaxLength = newSettings.PopupMaxLength;
-                _settings.Save();
 
                 if (wsPortChanged)
                 {
@@ -355,9 +519,8 @@ public partial class App : Application
                     _wsClient.Start();
                 }
 
-                if (ocPortChanged || wslChanged)
+                if (ocPortChanged || wslChanged || workDirChanged)
                 {
-                    // Restart OpenCode with new settings
                     Log.Information("[App] OpenCode settings changed, restarting...");
                     _eventService.Stop();
                     _processManager.Stop();
@@ -374,6 +537,9 @@ public partial class App : Application
                 {
                     _ = _openCodeClient.SetModelAsync(newSettings.ProviderID, newSettings.ModelID);
                 }
+
+                // Save after applying all changes
+                _settings.Save();
             };
 
             window.Closed += (_, _) => _settingsOpen = false;
@@ -386,19 +552,28 @@ public partial class App : Application
         }
     }
 
-    private static WindowIcon CreateTrayIcon()
+    private enum TrayConnectionState { BothConnected, Partial, Disconnected }
+
+    private WindowIcon CreateTrayIcon(TrayConnectionState state = TrayConnectionState.Disconnected)
     {
         const int size = 32;
         using var surface = SKSurface.Create(new SKImageInfo(size, size, SKColorType.Rgba8888, SKAlphaType.Premul));
         var canvas = surface.Canvas;
         canvas.Clear(SKColors.Transparent);
 
-        using var bgPaint = new SKPaint { Color = new SKColor(0x15, 0x65, 0xC0), IsAntialias = true };
+        var bgColor = state == TrayConnectionState.Disconnected
+            ? new SKColor(0x2D, 0x2D, 0x32)
+            : new SKColor(0x1E, 0x3A, 0x5F);
+        var textColor = state == TrayConnectionState.Disconnected
+            ? new SKColor(0x6B, 0x72, 0x80)
+            : new SKColor(0xE0, 0xE7, 0xEF);
+
+        using var bgPaint = new SKPaint { Color = bgColor, IsAntialias = true };
         canvas.DrawCircle(size / 2f, size / 2f, size / 2f - 1, bgPaint);
 
         using var textPaint = new SKPaint
         {
-            Color = SKColors.White,
+            Color = textColor,
             IsAntialias = true,
             TextSize = 13,
             TextAlign = SKTextAlign.Center,
@@ -407,10 +582,41 @@ public partial class App : Application
         var textY = size / 2f + textPaint.TextSize / 3f;
         canvas.DrawText("OV", size / 2f, textY, textPaint);
 
+        // Connection badge
+        if (state is TrayConnectionState.BothConnected or TrayConnectionState.Partial)
+        {
+            var (badgeBg, badgeFg) = state == TrayConnectionState.BothConnected
+                ? (new SKColor(0x1A, 0x3E, 0x30), new SKColor(0x4A, 0xDE, 0x80))
+                : (new SKColor(0x4E, 0x34, 0x12), new SKColor(0xFB, 0xBF, 0x24));
+
+            using var badgeBgPaint = new SKPaint { Color = badgeBg, IsAntialias = true };
+            using var badgeBorderPaint = new SKPaint { Color = bgColor, IsAntialias = true, Style = SKPaintStyle.Stroke, StrokeWidth = 1.5f };
+            using var badgeDotPaint = new SKPaint { Color = badgeFg, IsAntialias = true };
+
+            canvas.DrawCircle(26, 6, 5, badgeBgPaint);
+            canvas.DrawCircle(26, 6, 5, badgeBorderPaint);
+            canvas.DrawCircle(26, 6, 2.5f, badgeDotPaint);
+        }
+
         using var image = surface.Snapshot();
         using var data = image.Encode(SKEncodedImageFormat.Png, 100);
         var stream = new MemoryStream(data.ToArray());
         return new WindowIcon(stream);
+    }
+
+    private TrayConnectionState GetConnectionState()
+    {
+        bool voicer = _wsClient.IsConnected;
+        bool openCode = _eventService.IsConnected;
+        if (voicer && openCode) return TrayConnectionState.BothConnected;
+        if (voicer || openCode) return TrayConnectionState.Partial;
+        return TrayConnectionState.Disconnected;
+    }
+
+    private void RefreshTrayIcon()
+    {
+        if (_trayIcon == null) return;
+        _trayIcon.Icon = CreateTrayIcon(GetConnectionState());
     }
 
     private void ExitApplication()

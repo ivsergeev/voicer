@@ -11,10 +11,12 @@ public class OpenVoicerSettings
     public bool UseWsl { get; set; } = false;
     public string WslDistro { get; set; } = "";
     public string WslWorkDir { get; set; } = "~";
+    public string WorkDir { get; set; } = "";
     public string? ProviderID { get; set; }
     public string? ModelID { get; set; }
     public string AgentID { get; set; } = "build";
     public string NewSessionTag { get; set; } = "new-session";
+    public string ContextTag { get; set; } = "context";
     public bool ShowPopup { get; set; } = true;
     public double PopupDurationSeconds { get; set; } = 4;
     public int PopupMaxLength { get; set; } = 100;

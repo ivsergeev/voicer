@@ -46,6 +46,10 @@
                         <TextBox Grid.Column="1" x:Name="OpenCodePortTextBox" Width="80" HorizontalAlignment="Left"/>
                     </Grid>
                     <CheckBox x:Name="AutoStartCheckBox" Content="Запускать OpenCode при старте"/>
+                    <Grid ColumnDefinitions="120,*" x:Name="WorkDirGrid">
+                        <TextBlock Grid.Column="0" Text="Рабочий каталог" Foreground="#555" FontSize="13" VerticalAlignment="Center"/>
+                        <TextBox Grid.Column="1" x:Name="WorkDirTextBox" Watermark="каталог проекта" HorizontalAlignment="Stretch"/>
+                    </Grid>
                     <StackPanel x:Name="WslSection" Spacing="8">
                         <CheckBox x:Name="UseWslCheckBox" Content="Запускать через WSL2" Checked="UseWsl_Changed" Unchecked="UseWsl_Changed"/>
                         <Grid ColumnDefinitions="120,*" x:Name="WslDistroGrid" IsVisible="False">
@@ -53,7 +57,7 @@
                             <TextBox Grid.Column="1" x:Name="WslDistroTextBox" Watermark="по умолчанию" HorizontalAlignment="Stretch"/>
                         </Grid>
                         <Grid ColumnDefinitions="120,*" x:Name="WslWorkDirGrid" IsVisible="False">
-                            <TextBlock Grid.Column="0" Text="Рабочий каталог" Foreground="#555" FontSize="13" VerticalAlignment="Center"/>
+                            <TextBlock Grid.Column="0" Text="Рабочий каталог WSL" Foreground="#555" FontSize="13" VerticalAlignment="Center"/>
                             <TextBox Grid.Column="1" x:Name="WslWorkDirTextBox" Watermark="~ (домашний каталог)" HorizontalAlignment="Stretch"/>
                         </Grid>
                     </StackPanel>
@@ -108,7 +112,7 @@
             <Border Background="White" CornerRadius="6" Padding="14,12" BorderBrush="#E0E0E0" BorderThickness="1">
                 <StackPanel Spacing="8">
                     <CheckBox x:Name="ShowPopupCheckBox" Content="Показывать уведомления" Margin="0,0,0,4"/>
-                    <Grid ColumnDefinitions="140,*" RowDefinitions="Auto,Auto,Auto" Margin="0,0,0,4">
+                    <Grid ColumnDefinitions="140,*" RowDefinitions="Auto,Auto,Auto,Auto" Margin="0,0,0,4">
                         <TextBlock Grid.Row="0" Grid.Column="0" Text="Длительность" Foreground="#555" FontSize="13" VerticalAlignment="Center"/>
                         <StackPanel Grid.Row="0" Grid.Column="1" Orientation="Horizontal" Margin="0,0,0,8">
                             <TextBox x:Name="PopupDurationTextBox" Width="60" HorizontalAlignment="Left"/>
@@ -123,6 +127,9 @@
 
                         <TextBlock Grid.Row="2" Grid.Column="0" Text="Тег новой сессии" Foreground="#555" FontSize="13" VerticalAlignment="Center"/>
                         <TextBox Grid.Row="2" Grid.Column="1" x:Name="NewSessionTagTextBox" Width="140" HorizontalAlignment="Left"/>
+
+                        <TextBlock Grid.Row="3" Grid.Column="0" Text="Тег контекста" Foreground="#555" FontSize="13" VerticalAlignment="Center"/>
+                        <TextBox Grid.Row="3" Grid.Column="1" x:Name="ContextTagTextBox" Width="140" HorizontalAlignment="Left"/>
                     </Grid>
                     <CheckBox x:Name="AutoStartCheckBox2" Content="Запускать при загрузке системы"/>
                 </StackPanel>

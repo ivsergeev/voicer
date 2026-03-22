@@ -16,7 +16,8 @@ public class AppOrchestrator : IDisposable
     private readonly IPlatformInfo _platformInfo;
 
     private AppSettings _settings = null!;
-    private volatile AppState _state = AppState.Idle;
+    private readonly object _stateLock = new();
+    private AppState _state = AppState.Idle;
     private bool _insertMode;
     private volatile bool _paused;
     private string? _selectedText;
@@ -251,11 +252,14 @@ public class AppOrchestrator : IDisposable
     private void StartRecording(bool insertMode)
     {
         if (_paused) return;
-        if (_state != AppState.Idle) return;
         if (!_speechService.IsInitialized) return;
 
-        _insertMode = insertMode;
-        _state = AppState.Recording;
+        lock (_stateLock)
+        {
+            if (_state != AppState.Idle) return;
+            _insertMode = insertMode;
+            _state = AppState.Recording;
+        }
 
         try
         {
@@ -263,7 +267,7 @@ public class AppOrchestrator : IDisposable
         }
         catch (Exception ex)
         {
-            _state = AppState.Idle;
+            lock (_stateLock) _state = AppState.Idle;
             Log.Error(ex, "Failed to start recording");
             ErrorOccurred?.Invoke($"Failed to start recording:\n{ex.Message}");
             return;
@@ -295,12 +299,18 @@ public class AppOrchestrator : IDisposable
 
     private void StopRecordingAndProcess()
     {
-        if (_state != AppState.Recording) return;
+        bool insertMode;
+        HotkeyAction? currentAction;
 
-        var insertMode = _insertMode;
-        var currentAction = _currentWsAction;
+        lock (_stateLock)
+        {
+            if (_state != AppState.Recording) return;
+            insertMode = _insertMode;
+            currentAction = _currentWsAction;
+            _state = AppState.Processing;
+        }
+
         bool isSelectionMode = currentAction?.Action == WsActionType.TranscribeWithContext;
-        _state = AppState.Processing;
         _audioCaptureService.StopRecording();
 
         string procIconType;
@@ -332,32 +342,48 @@ public class AppOrchestrator : IDisposable
             {
                 var text = _speechService.Recognize(samples);
 
-                if (!string.IsNullOrWhiteSpace(text))
+                if (insertMode)
                 {
-                    Log.Information("Transcription: {Text}", text);
-
-                    if (insertMode)
+                    // Insert mode: require non-empty text
+                    if (!string.IsNullOrWhiteSpace(text))
                     {
+                        Log.Information("Transcription: {Text}", text);
                         await PasteTextAtCursor(text);
                         TranscriptionReady?.Invoke(text, null, null, "insert");
                     }
                     else
                     {
-                        // Protocol v2: send text, context, tag as separate fields
-                        string? context = _selectedText;
-                        string? tag = currentAction?.Tag;
-                        string mode = isSelectionMode ? "ws_sel" : "ws";
-
-                        _wsServer.BroadcastTranscription(text, context, tag);
-                        TranscriptionReady?.Invoke(text, context, tag, mode);
+                        Log.Debug("Transcription result is empty (insert mode)");
                     }
                 }
                 else
                 {
-                    Log.Debug("Transcription result is empty");
+                    // WS mode: send if text is non-empty, or if there's context/tag
+                    string? context = _selectedText;
+                    string? tag = currentAction?.Tag;
+                    bool hasContent = !string.IsNullOrWhiteSpace(text) ||
+                                     !string.IsNullOrEmpty(context) ||
+                                     !string.IsNullOrEmpty(tag);
+
+                    if (hasContent)
+                    {
+                        text ??= "";
+                        Log.Information("Transcription: {Text}{Context}{Tag}",
+                            string.IsNullOrWhiteSpace(text) ? "(empty)" : text,
+                            context != null ? $" +ctx[{context.Length}]" : "",
+                            tag != null ? $" +tag[{tag}]" : "");
+
+                        string mode = isSelectionMode ? "ws_sel" : "ws";
+                        _wsServer.BroadcastTranscription(text, context, tag);
+                        TranscriptionReady?.Invoke(text, context, tag, mode);
+                    }
+                    else
+                    {
+                        Log.Debug("Transcription result is empty (ws mode, no context/tag)");
+                    }
                 }
 
-                _state = AppState.Idle;
+                lock (_stateLock) _state = AppState.Idle;
                 if (!insertMode) _wsServer.BroadcastStatus("idle");
                 StateChanged?.Invoke(IdleStatus, IdleIconType);
             }
@@ -365,7 +391,7 @@ public class AppOrchestrator : IDisposable
             {
                 Log.Error(ex, "Recognition failed");
                 if (!insertMode) _wsServer.BroadcastError(ex.Message);
-                _state = AppState.Idle;
+                lock (_stateLock) _state = AppState.Idle;
                 if (!insertMode) _wsServer.BroadcastStatus("idle");
                 StateChanged?.Invoke("Error", "no_model");
             }
@@ -437,6 +463,7 @@ public class AppOrchestrator : IDisposable
             Log.Debug("WS SendTag: [{Tag}]", tag);
             _wsServer.BroadcastTranscription("", tag: tag);
             TranscriptionReady?.Invoke("", null, tag, "ws_tag");
+            _currentWsAction = null; // clear to avoid stale state
             return;
         }
 
@@ -465,10 +492,15 @@ public class AppOrchestrator : IDisposable
         _paused = true;
 
         // Force idle if recording was in progress
-        if (_state == AppState.Recording)
+        bool wasRecording;
+        lock (_stateLock)
+        {
+            wasRecording = _state == AppState.Recording;
+            if (wasRecording) _state = AppState.Idle;
+        }
+        if (wasRecording)
         {
             _audioCaptureService.StopRecording();
-            _state = AppState.Idle;
             _wsServer.BroadcastStatus("idle");
             StateChanged?.Invoke(IdleStatus, IdleIconType);
         }

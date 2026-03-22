@@ -9,6 +9,7 @@
         Topmost="True"
         SizeToContent="WidthAndHeight"
         MaxWidth="400"
+        MinWidth="280"
         PointerPressed="Window_PointerPressed">
     <Border x:Name="PopupBorder" CornerRadius="8" Padding="14,10"
             BorderBrush="#60FFFFFF" BorderThickness="1">
@@ -36,25 +37,34 @@
                        IsVisible="False"/>
 
             <!-- Full text in ScrollViewer (expanded mode) -->
-            <ScrollViewer x:Name="FullTextScroll" MaxHeight="300" IsVisible="False"
+            <ScrollViewer x:Name="FullTextScroll" MaxHeight="400" IsVisible="False"
                           VerticalScrollBarVisibility="Auto">
-                <TextBlock x:Name="FullText"
-                           Foreground="#DDFFFFFF"
-                           FontSize="13"
-                           TextWrapping="Wrap"/>
+                <SelectableTextBlock x:Name="FullText"
+                                     Foreground="#EEFFFFFF"
+                                     FontSize="13"
+                                     LineHeight="20"
+                                     TextWrapping="Wrap"
+                                     Padding="4"/>
             </ScrollViewer>
 
             <!-- Action buttons -->
             <StackPanel x:Name="ButtonPanel" Orientation="Horizontal" Spacing="8"
                         Margin="0,4,0,0" IsVisible="False">
                 <Button x:Name="RejectButton" Content="Отклонить" FontSize="12" Padding="12,4"
+                        Foreground="White" Background="#30FFFFFF"
                         Click="Reject_Click"/>
                 <Button x:Name="ApproveButton" Content="Разрешить" FontSize="12" Padding="12,4"
-                        Click="Approve_Click" Classes="accent"/>
+                        Foreground="White" Background="#50FFFFFF"
+                        Click="Approve_Click"/>
                 <Button x:Name="CloseButton" Content="Закрыть" FontSize="12" Padding="12,4"
+                        Foreground="White" Background="#30FFFFFF"
                         Click="Close_Click" IsVisible="False"/>
                 <Button x:Name="OkButton" Content="OK" FontSize="12" Padding="12,4"
+                        Foreground="White" Background="#30FFFFFF"
                         Click="Ok_Click" IsVisible="False"/>
+                <Button x:Name="CancelButton" Content="Отменить" FontSize="12" Padding="12,4"
+                        Foreground="White" Background="#30FFFFFF"
+                        Click="Cancel_Click" IsVisible="False"/>
             </StackPanel>
         </StackPanel>
     </Border>

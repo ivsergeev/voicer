@@ -94,7 +94,10 @@ public class OpenCodeProcessManager : IDisposable
             CreateNoWindow = true,
         };
 
-        Log.Information("[OC] Starting: {FileName} {Arguments}", psi.FileName, psi.Arguments);
+        if (!string.IsNullOrWhiteSpace(_settings.WorkDir) && Directory.Exists(_settings.WorkDir))
+            psi.WorkingDirectory = _settings.WorkDir;
+
+        Log.Information("[OC] Starting: {FileName} {Arguments} (cwd: {Cwd})", psi.FileName, psi.Arguments, psi.WorkingDirectory ?? "(default)");
         _process = new Process { StartInfo = psi, EnableRaisingEvents = true };
         AttachEvents();
         _process.Start();
@@ -109,20 +112,18 @@ public class OpenCodeProcessManager : IDisposable
         var workDir = string.IsNullOrWhiteSpace(_settings.WslWorkDir) ? "~" : _settings.WslWorkDir;
         var port = _settings.OpenCodePort;
 
+        // Force interactive bash so .bashrc is fully loaded
+        // (non-interactive shells skip .bashrc due to "case $- in *i*)" check)
         var psi = new ProcessStartInfo
         {
             FileName = "wsl",
-            Arguments = distroArg.TrimEnd(),
+            Arguments = (distroArg + "bash -i").Trim(),
             UseShellExecute = false,
             RedirectStandardInput = true,
             RedirectStandardOutput = true,
             RedirectStandardError = true,
             CreateNoWindow = true,
         };
-
-        // Override Arguments to force interactive bash so .bashrc is fully loaded
-        // (non-interactive shells skip .bashrc due to "case $- in *i*)" check)
-        psi.Arguments = (distroArg + "bash -i").Trim();
 
         Log.Information("[OC] Starting WSL: wsl {Arguments}", psi.Arguments);
         _process = new Process { StartInfo = psi, EnableRaisingEvents = true };
@@ -166,12 +167,18 @@ public class OpenCodeProcessManager : IDisposable
     {
         var proc = _process;
         if (proc == null) return;
+        _process = null;
 
         try
         {
-            if (!proc.HasExited)
+            bool hasExited;
+            try { hasExited = proc.HasExited; }
+            catch { hasExited = true; } // already disposed or inaccessible
+
+            if (!hasExited)
             {
-                Log.Information("[OC] Stopping (PID {Pid})...", proc.Id);
+                try { Log.Information("[OC] Stopping (PID {Pid})...", proc.Id); }
+                catch { Log.Information("[OC] Stopping..."); }
 
                 if (_settings.UseWsl)
                     KillOpenCodeInWsl();
@@ -187,7 +194,6 @@ public class OpenCodeProcessManager : IDisposable
         }
         finally
         {
-            _process = null;
             proc.Dispose();
         }
     }
@@ -309,10 +315,14 @@ public class OpenCodeProcessManager : IDisposable
 
     private void LaunchTuiDirect(string attachArgs)
     {
+        var dirArg = !string.IsNullOrWhiteSpace(_settings.WorkDir) && Directory.Exists(_settings.WorkDir)
+            ? $" --dir \"{_settings.WorkDir}\""
+            : "";
+
         var psi = new ProcessStartInfo
         {
             FileName = "cmd.exe",
-            Arguments = $"/c start \"OpenCode TUI\" opencode {attachArgs}",
+            Arguments = $"/c start \"OpenCode TUI\" opencode {attachArgs}{dirArg}",
             UseShellExecute = false,
             CreateNoWindow = true,
         };

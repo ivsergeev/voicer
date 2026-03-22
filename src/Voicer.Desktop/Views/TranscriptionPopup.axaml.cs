@@ -100,54 +100,42 @@ public partial class TranscriptionPopup : Window
     {
         return mode switch
         {
-            // Outgoing — WS basic (blue)
             "ws" => (
                 "Отправлено",
-                Color.FromRgb(0x4C, 0xAF, 0x50),
-                Color.FromArgb(0xC8, 0x15, 0x65, 0xC0) // blue 800
+                Color.FromRgb(0x4A, 0xDE, 0x80), // green dot
+                Color.FromArgb(0xF2, 0x1E, 0x3A, 0x5F) // deep navy bg
             ),
-
-            // Outgoing — WS + selection (indigo)
             "ws_sel" => (
                 "Отправлено",
-                Color.FromRgb(0x4C, 0xAF, 0x50),
-                Color.FromArgb(0xC8, 0x28, 0x35, 0x93) // indigo 800
+                Color.FromRgb(0x4A, 0xDE, 0x80),
+                Color.FromArgb(0xF2, 0x23, 0x2A, 0x4B) // dark indigo bg
             ),
-
-            // Outgoing — WS tag only (teal)
             "ws_tag" => (
                 "Отправлено",
-                Color.FromRgb(0x4C, 0xAF, 0x50),
-                Color.FromArgb(0xC8, 0x00, 0x69, 0x5C) // teal 800
+                Color.FromRgb(0x4A, 0xDE, 0x80),
+                Color.FromArgb(0xF2, 0x14, 0x3C, 0x41) // dark teal bg
             ),
-
-            // Outgoing — insert at cursor (purple)
             "insert" => (
                 "Вставлено",
-                Color.FromRgb(0x4C, 0xAF, 0x50),
-                Color.FromArgb(0xC8, 0x6A, 0x1B, 0x9A) // purple 800
+                Color.FromRgb(0x4A, 0xDE, 0x80),
+                Color.FromArgb(0xF2, 0x3B, 0x26, 0x50) // dark purple bg
             ),
-
-            // No clients — not delivered
             "no_clients" => (
                 "Не доставлено",
-                Color.FromRgb(0xFF, 0xA0, 0x00), // orange dot
-                Color.FromArgb(0xC8, 0x61, 0x61, 0x61) // gray bg
+                Color.FromRgb(0xFB, 0xBF, 0x24), // amber dot
+                Color.FromArgb(0xF2, 0x2D, 0x2D, 0x32) // dark gray bg
             ),
-
-            // System — client connection events
             "client_connected" => (
                 "Подключён",
-                Color.FromRgb(0x4C, 0xAF, 0x50), // green dot
-                Color.FromArgb(0xC8, 0x2E, 0x7D, 0x32) // green bg
+                Color.FromRgb(0x4A, 0xDE, 0x80), // green dot
+                Color.FromArgb(0xF2, 0x1A, 0x3E, 0x30) // dark green bg
             ),
             "client_disconnected" => (
                 "Отключён",
-                Color.FromRgb(0x9E, 0x9E, 0x9E), // gray dot
-                Color.FromArgb(0xC8, 0x61, 0x61, 0x61) // gray bg
+                Color.FromRgb(0x9C, 0xA3, 0xAF), // gray dot
+                Color.FromArgb(0xF2, 0x2D, 0x2D, 0x32) // dark gray bg
             ),
-
-            _ => ("", Color.FromRgb(0x99, 0x99, 0x99), Color.FromArgb(0xC8, 0x61, 0x61, 0x61)),
+            _ => ("", Color.FromRgb(0x9C, 0xA3, 0xAF), Color.FromArgb(0xF2, 0x2D, 0x2D, 0x32)),
         };
     }
 

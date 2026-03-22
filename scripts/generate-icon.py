@@ -22,8 +22,8 @@ def draw_microphone_icon(size: int) -> Image.Image:
     img = Image.new("RGBA", (ss, ss), (0, 0, 0, 0))
     draw = ImageDraw.Draw(img)
 
-    # --- Background ---
-    bg_color = (64, 72, 140)
+    # --- Background (deep navy #1E3A5F) ---
+    bg_color = (30, 58, 95)
     cr = int(ss * 0.22)
     draw.rounded_rectangle([(0, 0), (ss - 1, ss - 1)], radius=cr, fill=bg_color)
 
@@ -140,6 +140,14 @@ def main():
     for sz in [256, 48, 32, 16]:
         ov_icons[sz] = draw_openvoicer_icon(sz)
 
+    # Save OpenVoicer PNGs for macOS/Linux
+    for sz in [1024, 512, 256]:
+        ov_png = draw_openvoicer_icon(sz)
+        ov_png_path = os.path.join(icons_dir, f"openvoicer-{sz}.png")
+        ov_png.save(ov_png_path, "PNG", optimize=True)
+        kb = os.path.getsize(ov_png_path) // 1024
+        print(f"  OpenVoicer {sz}x{sz}: {ov_png_path} ({kb} KB)")
+
     ov_ico_path = os.path.join(icons_dir, "openvoicer.ico")
     ov_ico_images = [ov_icons[sz] for sz in [256, 48, 32, 16]]
     ov_ico_images[0].save(
@@ -160,8 +168,8 @@ def draw_openvoicer_icon(size: int) -> Image.Image:
     img = Image.new("RGBA", (ss, ss), (0, 0, 0, 0))
     draw = ImageDraw.Draw(img)
 
-    # --- Background (same blue as OpenVoicer tray: #3B82F6) ---
-    bg_color = (59, 130, 246)
+    # --- Background (deep navy #1E3A5F, matching Voicer) ---
+    bg_color = (30, 58, 95)
     cr = int(ss * 0.22)
     draw.rounded_rectangle([(0, 0), (ss - 1, ss - 1)], radius=cr, fill=bg_color)
 
@@ -177,7 +185,7 @@ def draw_openvoicer_icon(size: int) -> Image.Image:
     draw = ImageDraw.Draw(img)
 
     # --- Text "OV" ---
-    white = (255, 255, 255)
+    white = (224, 231, 239)  # #E0E7EF
     font_size = int(ss * 0.42)
     try:
         font = ImageFont.truetype("arial.ttf", font_size)

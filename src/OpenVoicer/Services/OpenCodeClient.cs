@@ -321,6 +321,36 @@ public class OpenCodeClient : IDisposable
         return result;
     }
 
+    /// <summary>
+    /// Aborts the currently running prompt in the active session.
+    /// </summary>
+    public async Task<bool> AbortAsync()
+    {
+        if (_activeSessionId == null)
+        {
+            Log.Warning("[OC API] No active session to abort");
+            return false;
+        }
+
+        try
+        {
+            var resp = await _http.PostAsync($"/session/{_activeSessionId}/abort", null);
+            if (resp.IsSuccessStatusCode)
+            {
+                Log.Information("[OC API] Session {SessionId} aborted", _activeSessionId);
+                return true;
+            }
+
+            Log.Error("[OC API] Abort failed ({StatusCode})", resp.StatusCode);
+            return false;
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "[OC API] Abort error");
+            return false;
+        }
+    }
+
     public void Dispose()
     {
         _http.Dispose();

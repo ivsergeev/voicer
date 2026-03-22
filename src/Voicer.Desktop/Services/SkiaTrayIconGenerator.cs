@@ -16,21 +16,21 @@ public class SkiaTrayIconGenerator : ITrayIconGenerator
 
         var bytes = iconType switch
         {
-            "idle" => RenderIcon(new SKColor(21, 101, 192), SKColors.White),
-            "idle_claimed" => RenderIcon(new SKColor(21, 101, 192), SKColors.White),  // same blue as OpenVoicer
-            "idle_no_clients" => RenderIcon(new SKColor(120, 120, 120), new SKColor(200, 200, 200)),
-            "recording_ws" => RenderIcon(new SKColor(21, 101, 192), SKColors.White, "\u25CF", new SKColor(66, 165, 245)),
-            "recording_insert" => RenderIcon(new SKColor(21, 101, 192), SKColors.White, "\u25CF", new SKColor(100, 181, 246)),
-            "recording_ws_sel" => RenderIcon(new SKColor(40, 53, 147), SKColors.White, "\u25CF", new SKColor(121, 134, 203)),
-            "recording_ws_noclaim" => RenderIcon(new SKColor(120, 120, 120), new SKColor(200, 200, 200), "\u25CF", new SKColor(160, 160, 160)),
-            "recording_ws_sel_noclaim" => RenderIcon(new SKColor(120, 120, 120), new SKColor(200, 200, 200), "\u25CF", new SKColor(160, 160, 160)),
-            "processing_ws" => RenderIcon(new SKColor(21, 101, 192), new SKColor(200, 220, 255), "\u2026", new SKColor(66, 165, 245)),
-            "processing_insert" => RenderIcon(new SKColor(21, 101, 192), new SKColor(200, 220, 255), "\u2026", new SKColor(100, 181, 246)),
-            "processing_ws_sel" => RenderIcon(new SKColor(40, 53, 147), new SKColor(210, 215, 255), "\u2026", new SKColor(121, 134, 203)),
-            "processing_ws_noclaim" => RenderIcon(new SKColor(120, 120, 120), new SKColor(200, 200, 200), "\u2026", new SKColor(160, 160, 160)),
-            "processing_ws_sel_noclaim" => RenderIcon(new SKColor(120, 120, 120), new SKColor(200, 200, 200), "\u2026", new SKColor(160, 160, 160)),
-            "no_model" => RenderIcon(new SKColor(97, 97, 97), new SKColor(200, 200, 200), "!", new SKColor(180, 40, 40)),
-            _ => RenderIcon(new SKColor(21, 101, 192), SKColors.White),
+            "idle" => RenderIcon(new SKColor(0x1E, 0x3A, 0x5F), new SKColor(0xE0, 0xE7, 0xEF)),
+            "idle_claimed" => RenderIcon(new SKColor(0x1E, 0x3A, 0x5F), new SKColor(0xE0, 0xE7, 0xEF)),
+            "idle_no_clients" => RenderIcon(new SKColor(0x2D, 0x2D, 0x32), new SKColor(0x6B, 0x72, 0x80)),
+            "recording_ws" => RenderIcon(new SKColor(0x1E, 0x3A, 0x5F), SKColors.White, "\u25CF", new SKColor(0x60, 0xA5, 0xFA)),
+            "recording_insert" => RenderIcon(new SKColor(0x3B, 0x26, 0x50), SKColors.White, "\u25CF", new SKColor(0xA7, 0x8B, 0xFA)),
+            "recording_ws_sel" => RenderIcon(new SKColor(0x23, 0x2A, 0x4B), SKColors.White, "\u25CF", new SKColor(0x81, 0x8C, 0xF8)),
+            "recording_ws_noclaim" => RenderIcon(new SKColor(0x2D, 0x2D, 0x32), new SKColor(0x6B, 0x72, 0x80), "\u25CF", new SKColor(0x6B, 0x72, 0x80)),
+            "recording_ws_sel_noclaim" => RenderIcon(new SKColor(0x2D, 0x2D, 0x32), new SKColor(0x6B, 0x72, 0x80), "\u25CF", new SKColor(0x6B, 0x72, 0x80)),
+            "processing_ws" => RenderIcon(new SKColor(0x1E, 0x3A, 0x5F), new SKColor(0x94, 0xB8, 0xDB), "\u2026", new SKColor(0x60, 0xA5, 0xFA)),
+            "processing_insert" => RenderIcon(new SKColor(0x3B, 0x26, 0x50), new SKColor(0xC4, 0xB5, 0xD8), "\u2026", new SKColor(0xA7, 0x8B, 0xFA)),
+            "processing_ws_sel" => RenderIcon(new SKColor(0x23, 0x2A, 0x4B), new SKColor(0xA0, 0xA8, 0xD0), "\u2026", new SKColor(0x81, 0x8C, 0xF8)),
+            "processing_ws_noclaim" => RenderIcon(new SKColor(0x2D, 0x2D, 0x32), new SKColor(0x6B, 0x72, 0x80), "\u2026", new SKColor(0x6B, 0x72, 0x80)),
+            "processing_ws_sel_noclaim" => RenderIcon(new SKColor(0x2D, 0x2D, 0x32), new SKColor(0x6B, 0x72, 0x80), "\u2026", new SKColor(0x6B, 0x72, 0x80)),
+            "no_model" => RenderIcon(new SKColor(0x2D, 0x2D, 0x32), new SKColor(0x6B, 0x72, 0x80), "!", new SKColor(0x50, 0x1E, 0x1E)),
+            _ => RenderIcon(new SKColor(0x1E, 0x3A, 0x5F), new SKColor(0xE0, 0xE7, 0xEF)),
         };
 
         _cache[iconType] = bytes;

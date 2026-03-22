@@ -29,6 +29,7 @@ public partial class SettingsWindow : Window
         VoicerPortTextBox.Text = settings.VoicerWsPort.ToString();
         OpenCodePortTextBox.Text = settings.OpenCodePort.ToString();
         AutoStartCheckBox.IsChecked = settings.AutoStartOpenCode;
+        WorkDirTextBox.Text = settings.WorkDir;
         // WSL section — only available on Windows
         if (OperatingSystem.IsWindows())
         {
@@ -48,6 +49,7 @@ public partial class SettingsWindow : Window
         PopupDurationTextBox.Text = settings.PopupDurationSeconds.ToString("0.#", CultureInfo.InvariantCulture);
         PopupMaxLengthTextBox.Text = settings.PopupMaxLength.ToString();
         NewSessionTagTextBox.Text = settings.NewSessionTag;
+        ContextTagTextBox.Text = settings.ContextTag;
         AutoStartCheckBox2.IsChecked = AutoStartService.IsEnabled();
 
         if (_openCodeClient != null)
@@ -250,6 +252,10 @@ public partial class SettingsWindow : Window
         if (string.IsNullOrEmpty(newSessionTag))
             newSessionTag = "new-session";
 
+        var contextTag = ContextTagTextBox.Text?.Trim();
+        if (string.IsNullOrEmpty(contextTag))
+            contextTag = "context";
+
         // Autostart
         AutoStartService.SetEnabled(AutoStartCheckBox2.IsChecked == true);
 
@@ -259,12 +265,14 @@ public partial class SettingsWindow : Window
             OpenCodePort = ocPort,
             AutoStartOpenCode = AutoStartCheckBox.IsChecked == true,
             UseWsl = UseWslCheckBox.IsChecked == true,
+            WorkDir = WorkDirTextBox.Text?.Trim() ?? "",
             WslDistro = WslDistroTextBox.Text?.Trim() ?? "",
             WslWorkDir = WslWorkDirTextBox.Text?.Trim() ?? "~",
             ProviderID = providerID,
             ModelID = modelID,
             AgentID = agentID,
             NewSessionTag = newSessionTag,
+            ContextTag = contextTag,
             ShowPopup = ShowPopupCheckBox.IsChecked == true,
             PopupDurationSeconds = popupDuration,
             PopupMaxLength = popupMaxLength,
