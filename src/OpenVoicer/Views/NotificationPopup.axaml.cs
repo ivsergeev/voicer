@@ -428,6 +428,11 @@ public partial class NotificationPopup : Window
 
         // Reposition after content change
         Dispatcher.UIThread.Post(RepositionAll, DispatcherPriority.Loaded);
+
+        // Start auto-close timer
+        _timer.Stop();
+        _timer.Interval = TimeSpan.FromSeconds(duration);
+        _timer.Start();
     }
 
     /// <summary>

@@ -21,6 +21,7 @@ public class AppOrchestrator : IDisposable
     private bool _insertMode;
     private volatile bool _paused;
     private string? _selectedText;
+    private Task? _captureSelectedTextTask;
     private volatile int _wsClientCount;
     private volatile bool _hasActiveClaim;
 
@@ -358,6 +359,15 @@ public class AppOrchestrator : IDisposable
                 }
                 else
                 {
+                    // Wait for clipboard/selection capture to complete before reading result
+                    var captureTask = _captureSelectedTextTask;
+                    if (captureTask != null)
+                    {
+                        try { await captureTask; }
+                        catch { /* already logged inside CaptureSelectedText */ }
+                        _captureSelectedTextTask = null;
+                    }
+
                     // WS mode: send if text is non-empty, or if there's context/tag
                     string? context = _selectedText;
                     string? tag = currentAction?.Tag;
@@ -470,7 +480,7 @@ public class AppOrchestrator : IDisposable
         if (action.Action == WsActionType.TranscribeWithContext)
         {
             // Capture selected text in parallel with recording
-            _ = CaptureSelectedText();
+            _captureSelectedTextTask = CaptureSelectedText();
         }
     }
 
