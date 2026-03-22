@@ -88,7 +88,7 @@ if [ -z "$SKIP_DEB" ]; then
     cp "$ROOT_DIR/installer/linux/openvoicer.desktop" "$DEB_ROOT/usr/share/applications/"
 
     # Copy icon if available
-    ICON_SOURCE="$ROOT_DIR/installer/icons/icon-256.png"
+    ICON_SOURCE="$ROOT_DIR/installer/icons/openvoicer-256.png"
     if [ -f "$ICON_SOURCE" ]; then
         cp "$ICON_SOURCE" "$DEB_ROOT/usr/share/icons/hicolor/256x256/apps/openvoicer.png"
         cp "$ICON_SOURCE" "$DEB_ROOT/opt/openvoicer/openvoicer.png"
@@ -138,8 +138,8 @@ find "$TAR_STAGING/$TAR_DIR_NAME" -name "*.so.*" -exec chmod +x {} \;
 
 # Copy desktop entry, icon, install/uninstall scripts
 cp "$ROOT_DIR/installer/linux/openvoicer.desktop" "$TAR_STAGING/$TAR_DIR_NAME/"
-if [ -f "$ROOT_DIR/installer/icons/icon-256.png" ]; then
-    cp "$ROOT_DIR/installer/icons/icon-256.png" "$TAR_STAGING/$TAR_DIR_NAME/openvoicer.png"
+if [ -f "$ROOT_DIR/installer/icons/openvoicer-256.png" ]; then
+    cp "$ROOT_DIR/installer/icons/openvoicer-256.png" "$TAR_STAGING/$TAR_DIR_NAME/openvoicer.png"
 fi
 cp "$ROOT_DIR/installer/linux/openvoicer-install.sh" "$TAR_STAGING/$TAR_DIR_NAME/install.sh"
 cp "$ROOT_DIR/installer/linux/openvoicer-uninstall.sh" "$TAR_STAGING/$TAR_DIR_NAME/uninstall.sh"

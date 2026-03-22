@@ -15,7 +15,6 @@ public partial class SettingsWindow : Window
     private List<(string Name, string Description, string Mode)> _agents = new();
 
     public event Action<OpenVoicerSettings>? SettingsChanged;
-    public event Action? RefreshRequested;
 
     public SettingsWindow() : this(new OpenVoicerSettings(), null) { }
 
@@ -150,8 +149,8 @@ public partial class SettingsWindow : Window
     {
         if (AgentComboBox.SelectedIndex >= 0 && AgentComboBox.SelectedIndex < _agents.Count)
         {
-            var desc = _agents[AgentComboBox.SelectedIndex].Description;
-            AgentDescText.Text = desc.Length > 120 ? desc.Substring(0, 120) + "..." : desc;
+            var desc = _agents[AgentComboBox.SelectedIndex].Description ?? "";
+            AgentDescText.Text = desc.Length > 120 ? desc[..120] + "..." : desc;
         }
     }
 

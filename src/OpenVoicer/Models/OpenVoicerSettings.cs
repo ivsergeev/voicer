@@ -1,5 +1,6 @@
 using System.IO;
 using System.Text.Json;
+using Serilog;
 
 namespace OpenVoicer.Models;
 
@@ -34,16 +35,23 @@ public class OpenVoicerSettings
             var json = File.ReadAllText(SettingsPath);
             return JsonSerializer.Deserialize<OpenVoicerSettings>(json) ?? new OpenVoicerSettings();
         }
-        catch
+        catch (Exception ex)
         {
-            // Corrupted settings — return defaults
+            Log.Warning(ex, "[Settings] Failed to load settings, using defaults");
             return new OpenVoicerSettings();
         }
     }
 
     public void Save()
     {
-        var json = JsonSerializer.Serialize(this, new JsonSerializerOptions { WriteIndented = true });
-        File.WriteAllText(SettingsPath, json);
+        try
+        {
+            var json = JsonSerializer.Serialize(this, new JsonSerializerOptions { WriteIndented = true });
+            File.WriteAllText(SettingsPath, json);
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "[Settings] Failed to save settings to {Path}", SettingsPath);
+        }
     }
 }
