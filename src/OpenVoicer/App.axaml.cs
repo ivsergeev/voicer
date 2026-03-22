@@ -410,7 +410,30 @@ public partial class App : Application
         {
             Log.Information("[App] Cancel requested from popup");
             _cancelRequested = true;
-            _ = _openCodeClient.AbortAsync();
+
+            // Immediate visual feedback — switch popup to "cancelling" state
+            popup.Complete("Отмена...", null, badge: "Abort", duration: 15);
+
+            _ = Task.Run(async () =>
+            {
+                var success = await _openCodeClient.AbortAsync();
+                if (!success)
+                    Log.Warning("[App] Abort request failed");
+
+                // Wait for AgentIdle to handle cleanup; force-dismiss if it doesn't come
+                await Task.Delay(10000);
+                Dispatcher.UIThread.Post(() =>
+                {
+                    if (_cancelRequested)
+                    {
+                        Log.Warning("[App] AgentIdle not received after abort, force-dismissing");
+                        _cancelRequested = false;
+                        DismissAllProcessingPopups();
+                        ShowNotification("Отменено", null, "agent",
+                            badge: "Abort", duration: _settings.PopupDurationSeconds);
+                    }
+                });
+            });
         };
 
         _processingPopups.Enqueue(popup);
