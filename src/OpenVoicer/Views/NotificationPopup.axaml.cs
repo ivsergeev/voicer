@@ -20,6 +20,7 @@ public partial class NotificationPopup : Window
     private string? _fullTextContent;
     private bool _isExpanded;
     private bool _isExpandable;
+    private bool _isClosed;
 
     public event Action? CancelRequested;
     public event Action? RemoveRequested;
@@ -37,6 +38,7 @@ public partial class NotificationPopup : Window
 
         Closed += (_, _) =>
         {
+            _isClosed = true;
             _activePopups.Remove(this);
             RepositionAll();
         };
@@ -351,6 +353,7 @@ public partial class NotificationPopup : Window
 
     private void Approve_Click(object? sender, RoutedEventArgs e)
     {
+        if (_isClosed) return;
         _onApprove?.Invoke();
         _timer.Stop();
         Close();
@@ -358,6 +361,7 @@ public partial class NotificationPopup : Window
 
     private void Reject_Click(object? sender, RoutedEventArgs e)
     {
+        if (_isClosed) return;
         _onReject?.Invoke();
         _timer.Stop();
         Close();
@@ -365,6 +369,7 @@ public partial class NotificationPopup : Window
 
     private void Close_Click(object? sender, RoutedEventArgs e)
     {
+        if (_isClosed) return;
         RemoveRequested?.Invoke();
         _timer.Stop();
         Close();
@@ -372,6 +377,7 @@ public partial class NotificationPopup : Window
 
     private void Ok_Click(object? sender, RoutedEventArgs e)
     {
+        if (_isClosed) return;
         _timer.Stop();
         Close();
     }
@@ -387,6 +393,8 @@ public partial class NotificationPopup : Window
             Dispatcher.UIThread.Post(() => Complete(title, description, badge, duration));
             return;
         }
+
+        if (_isClosed) return;
 
         var (dotColor, bgColor, _) = GetTypeStyle("done");
         StatusDot.Foreground = new SolidColorBrush(dotColor);
@@ -428,11 +436,6 @@ public partial class NotificationPopup : Window
 
         // Reposition after content change
         Dispatcher.UIThread.Post(RepositionAll, DispatcherPriority.Loaded);
-
-        // Start auto-close timer
-        _timer.Stop();
-        _timer.Interval = TimeSpan.FromSeconds(duration);
-        _timer.Start();
     }
 
     /// <summary>
@@ -446,15 +449,17 @@ public partial class NotificationPopup : Window
             return;
         }
 
+        if (_isClosed) return;
         _timer.Stop();
         Close();
     }
 
     private void Cancel_Click(object? sender, RoutedEventArgs e)
     {
+        // Fire event — handler may call Complete() to transition popup to "cancelling" state.
+        // Do NOT close the popup here; the handler or AgentIdle/timeout will dismiss it.
         CancelRequested?.Invoke();
         _timer.Stop();
-        Close();
     }
 
     private void Window_PointerPressed(object? sender, PointerPressedEventArgs e)
